@@ -1,0 +1,9 @@
+com\app\service\registro\RegistroMedicaoServiceTest.class
+com\app\service\estatistica\EstatisticaServiceTest.class
+com\app\service\coleta\ColetorAgendadoServiceTest.class
+com\app\service\estatistica\EstatisticaServiceTest$2.class
+com\app\service\openweather\OpenWeatherClientTest.class
+com\app\service\calculo\CalculadoraSensacaoTermicaTest.class
+com\app\service\coleta\ColetorAgendadoServiceTest$1.class
+com\app\model\dto\request\MedicaoRequestTest.class
+com\app\service\estatistica\EstatisticaServiceTest$1.class

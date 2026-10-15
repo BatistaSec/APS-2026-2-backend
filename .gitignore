@@ -1,0 +1,13 @@
+# Bytecode
+bin/
+out/
+*.class
+
+# Logs & temporarios
+*.log
+*.tmp
+
+# IDEs
+.idea/
+*.iml
+.vscode/
