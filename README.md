@@ -11,36 +11,22 @@ O projeto adota rigorosamente os princípios **SOLID**:
 
 ---
 
-## 🆕 Últimas Mudanças
-
-### 🗺 Mapa Interativo no Frontend
-O frontend agora conta com um mapa interativo completo baseado em **Leaflet.js** + **OpenStreetMap**, sem necessidade de API key adicional.
-
-- Botão **"🗺 Ver no mapa"** abaixo da barra de busca abre/fecha o mapa
-- Clique em **qualquer ponto do mundo** — o sistema identifica a cidade via reverse geocode (Nominatim) e exibe um popup com o nome e um botão "Ver clima aqui"
-- Selecionar uma cidade pelo mapa usa **o mesmo fluxo** da busca por texto
-- O marcador no mapa acompanha a cidade selecionada, seja via mapa ou via texto
-- Qualquer pesquisa (mapa ou texto) **salva automaticamente no histórico** de medições
-
-### 📡 Histórico de Pesquisas Automático
-Quando um usuário pesquisa uma cidade no frontend (via texto ou mapa), os dados climáticos retornados pela OpenWeatherMap são **automaticamente salvos no banco MySQL** e ficam disponíveis no histórico de medições.
-
----
-
-## 🏛️ Estrutura de Pacotes SOLID (SRP / ISP / DIP)
+## 🏛️ Estrutura de Pacotes
 
 ```text
 src/main/java/com/app
-├── Main.java                                    # Inicialização do servidor HTTP e coletor
+├── Main.java                                    # Inicialização do servidor HTTP, EnvLoader e coletor
 ├── model
 │   ├── MedicaoAmbiental.java                   # Entidade JPA mapeada para a tabela no MySQL
 │   └── dto
-│       ├── request                             # DTOs de entrada flexíveis (cidade, estado, lote)
-│       │   ├── MedicaoRequest.java
-│       │   └── SincronizacaoRequest.java
-│       └── response                            # DTOs de saída formatados
-│           ├── EstatisticasClimaticas.java
-│           └── MedicaoResponse.java
+│       ├── request
+│       │   ├── MedicaoRequest.java             # DTO de entrada (cidade, estado, país, campos opcionais)
+│       │   └── SincronizacaoRequest.java       # DTO de entrada para lote de cidades/estados
+│       └── response
+│           ├── MedicaoResponse.java            # DTO de saída de uma medição
+│           ├── EstatisticasClimaticas.java     # DTO de saída das estatísticas
+│           ├── PaginatedResponse.java          # Wrapper genérico de paginação
+│           └── ProblemDetails.java             # Erro padronizado RFC 7807
 ├── dao
 │   ├── salvar/                                 # SRP & ISP: Persistência de medições
 │   │   ├── SalvarMedicaoDao.java
@@ -61,61 +47,74 @@ src/main/java/com/app
 │   ├── estatistica/                            # SRP & DIP: Agregação estatística de medições
 │   │   ├── EstatisticaService.java
 │   │   └── EstatisticaServiceImpl.java
-│   ├── openweather/                            # SRP: Integração com a API OpenWeatherMap (qualquer cidade)
+│   ├── openweather/                            # SRP: Integração com a API OpenWeatherMap
 │   │   ├── OpenWeatherClient.java
 │   │   └── OpenWeatherClientImpl.java
-│   ├── coleta/                                 # SRP & DIP: Coletor em segundo plano com rotação de cidades
+│   ├── coleta/                                 # SRP & DIP: Coletor agendado em segundo plano
 │   │   ├── ColetorAgendadoService.java
 │   │   └── ColetorAgendadoServiceImpl.java
 │   └── MonitoramentoService.java               # DIP & Fachada para os handlers REST
 ├── handler
+│   ├── MedicaoApiHandler.java                  # Roteador / Dispatcher de requisições
+│   ├── health/
+│   │   └── HealthHandler.java                  # GET /health — métricas internas do sistema
 │   ├── http
 │   │   ├── request/                            # DIP: Abstração de requisição HTTP desacoplada
 │   │   │   ├── HttpRequest.java
 │   │   │   └── HttpRequestImpl.java
-│   │   └── response/                           # DIP: Abstração de envio de resposta com CORS e UTF-8
+│   │   └── response/                           # DIP: Resposta HTTP com CORS, GZIP e UTF-8
 │   │       ├── HttpResponseSender.java
 │   │       └── HttpResponseSenderImpl.java
 │   ├── operacoes
-│   │   ├── get/                                # SRP: Handler exclusivo para requisições GET
+│   │   ├── get/                                # SRP: Handler exclusivo para GET
 │   │   │   ├── MedicaoGetHandler.java
 │   │   │   └── MedicaoGetHandlerImpl.java
-│   │   ├── post/                               # SRP: Handler exclusivo para requisições POST
+│   │   ├── post/                               # SRP: Handler exclusivo para POST
 │   │   │   ├── MedicaoPostHandler.java
 │   │   │   └── MedicaoPostHandlerImpl.java
-│   │   └── delete/                             # SRP: Handler exclusivo para requisições DELETE
+│   │   └── delete/                             # SRP: Handler exclusivo para DELETE
 │   │       ├── MedicaoDeleteHandler.java
 │   │       └── MedicaoDeleteHandlerImpl.java
-│   └── MedicaoApiHandler.java                  # Roteador / Dispatcher de requisições
+│   └── proxy/
+│       ├── FrontendStaticHandler.java          # Serve os arquivos estáticos do frontend
+│       └── WeatherProxyHandler.java            # Proxy reverso para chamadas OpenWeatherMap
 └── util
-    ├── HibernateUtil.java                      # Gerenciador da SessionFactory do Hibernate
-    └── JsonUtil.java                           # Parser JSON leve e nativo
+    ├── EnvLoader.java                          # Carrega o .env na inicialização
+    ├── HibernateUtil.java                      # Inicialização e shutdown da SessionFactory
+    ├── JsonUtil.java                           # Parser JSON leve e nativo (sem dependências)
+    ├── cache/
+    │   └── CacheManager.java                   # Cache em memória com TTL (ConcurrentHashMap)
+    ├── database/
+    │   └── DatabaseConnectionManager.java      # Gerenciador de sessões e transações Hibernate
+    ├── i18n/
+    │   └── I18n.java                           # Internacionalização pt-BR via ResourceBundle
+    └── logging/
+        └── AsyncLogger.java                    # Logging assíncrono via LinkedBlockingQueue
 ```
 
 ---
 
 ## ⚙️ Os 4 Pilares do Sistema
 
-1. **Coleta (`ColetorAgendadoService` e `OpenWeatherClient`)**:
-   - Rotina em segundo plano a cada 10 segundos coletando dados meteorológicos reais da OpenWeatherMap.
-   - Suporte dinâmico a qualquer cidade do mundo (sem ficar restrito a uma só cidade).
-   - Possibilidade de adicionar cidades dinamicamente ou disparar coletas sob demanda.
+1. **Coleta (`ColetorAgendadoService` + `OpenWeatherClient`)**
+   - Rotina em segundo plano a cada 10 segundos coletando dados reais da OpenWeatherMap.
+   - Suporte a qualquer cidade do mundo; cidades adicionáveis dinamicamente via API.
+   - Ciclo de coleta disparável sob demanda via `POST /api/v1/coletor/execucoes`.
 
-2. **Cálculo (`CalculadoraSensacaoTermica`)**:
-   - Cálculo automático de Sensação Térmica utilizando fórmulas internacionais:
-     - **Wind Chill** (resfriamento pelo vento) para clima frio ($\le 10^\circ\text{C}$).
-     - **Heat Index** (Steadman) para calor e alta umidade ($\ge 26^\circ\text{C}$ e $\text{umidade} \ge 40\%$).
-     - Preservação da temperatura real em climas amenos.
+2. **Cálculo (`CalculadoraSensacaoTermica`)**
+   - Sensação Térmica calculada automaticamente com fórmulas internacionais:
+     - **Wind Chill** para clima frio (≤ 10 °C).
+     - **Heat Index** (Steadman) para calor com alta umidade (≥ 26 °C e umidade ≥ 40 %).
+     - Temperatura real preservada em climas amenos.
 
-3. **Estatística (`EstatisticaService`)**:
-   - Agregação matemática com cálculo de:
-     - Média, mínima e máxima de temperatura e sensação térmica.
-     - Média, mínima e máxima de umidade relativa.
-     - Pico de vento (velocidade máxima).
-     - Contagem de ocorrências de precipitação (chuva).
+3. **Estatística (`EstatisticaService`)**
+   - Uma única query HQL de projeção (COUNT, MIN, MAX, AVG) — sem N+1.
+   - Calcula média, mínima e máxima de temperatura, umidade e sensação térmica; pico de vento; contagem de chuvas.
+   - Resultado em cache com TTL de 30 s.
 
-4. **Registro (`RegistroMedicaoService` e `SalvarMedicaoDao`)**:
-   - Validação dos dados, preenchimento de metadados (`dataHora`, `estacaoId`, etc.) e persistência transacional no MySQL via Hibernate 6.
+4. **Registro (`RegistroMedicaoService` + `SalvarMedicaoDao`)**
+   - Validação dos dados, preenchimento de metadados e persistência transacional no MySQL via Hibernate 6.
+   - Batch de 25 inserts via JDBC batching.
 
 ---
 
@@ -128,191 +127,152 @@ src/main/java/com/app
 | **Data e Hora** | `LocalDateTime` | `dataHora` | Registro cronológico da medição |
 | **Temperatura Ambiente** | `Double` (°C) | `temperatura` | Medição térmica ambiente |
 | **Sensação Térmica** | `Double` (°C) | `sensacaoTermica` | Calculada automaticamente pelo backend |
-| **Umidade Relativa do Ar**| `Double` (%) | `umidade` | Umidade relativa do ar |
-| **Precipitação** | `Boolean` (true/false) | `precipitacao` | Detector de chuva |
-| **Velocidade do Vento** | `Double` (km/h) | `velocidadeVento` | Medição de vento convertida de m/s para km/h |
-| **Direção do Vento** | `String` | `direcaoVento` | Posição na rosa dos ventos (N, NE, L, SE, S, SO, O, NO) |
-| **Pressão Atmosférica** | `Double` (hPa) | `pressaoAtmosferica`| Pressão barométrica |
-| **Índice UV** | `Double` (0 a 12+) | `indiceUv` | Radiação solar |
+| **Umidade Relativa** | `Double` (%) | `umidade` | Umidade relativa do ar |
+| **Precipitação** | `Boolean` | `precipitacao` | Detector de chuva |
+| **Velocidade do Vento** | `Double` (km/h) | `velocidadeVento` | Convertida de m/s para km/h |
+| **Direção do Vento** | `String` | `direcaoVento` | Rosa dos ventos (N, NE, L, SE, S, SO, O, NO) |
+| **Pressão Atmosférica** | `Double` (hPa) | `pressaoAtmosferica` | Pressão barométrica |
+| **Índice UV** | `Double` (0–12+) | `indiceUv` | Radiação solar |
 
 ---
 
-## 📮 Endpoints da API REST (Postman / cURL)
+## 📮 Endpoints da API REST
 
-> Todos os endpoints usam o prefixo `/api/v1/`.
+> Base URL: `http://localhost:8080` — todos os recursos da API usam o prefixo `/api/v1/`.
 
 ---
 
-### 1. Inserir Medição (POST)
+### 1. Inserir Medição — `POST /api/v1/medicoes`
 
-O DTO aceita apenas a cidade, apenas o estado (sigla BR) ou ambos. O backend consulta a OpenWeatherMap em tempo real, calcula a sensação térmica e salva no MySQL.
+O backend consulta a OpenWeatherMap, calcula a sensação térmica e persiste no MySQL.
 
-- **Método**: `POST`
-- **URL**: `http://localhost:8080/api/v1/medicoes`
-
-
-**Opção A — Apenas o estado (resolve para a capital):**
+**Opção A — apenas estado (resolve para a capital):**
 ```json
 { "estado": "PR" }
 ```
-
-**Opção B — Cidade + estado:**
+**Opção B — cidade + estado:**
 ```json
 { "cidade": "Curitiba", "estado": "PR" }
 ```
-
-**Opção C — Cidade + país:**
+**Opção C — cidade + país:**
 ```json
 { "cidade": "Tokyo", "pais": "JP" }
 ```
 
-*Também aceita via query string:* `POST /api/v1/medicoes?estado=SP` ou `?cidade=Miami`
+*Também aceita query string:* `POST /api/v1/medicoes?cidade=Miami`
 
 > Campos opcionais para sobrescrever valores da OWM: `temperatura`, `umidade`, `precipitacao`, `velocidadeVento`, `pressaoAtmosferica`, `direcaoVento`, `indiceUv`, `dataHora`.
 
 ---
 
-### 2. Sincronizar Lote de Cidades (POST)
+### 2. Sincronizar Lote de Cidades — `POST /api/v1/sincronizacoes`
 
-Busca e salva o clima de várias cidades simultaneamente.
+Busca e salva o clima de várias cidades de uma vez.
 
-- **Método**: `POST`
-- **URL**: `http://localhost:8080/api/v1/sincronizacoes`
-
-- **Corpo**:
 ```json
 { "cidades": ["Tokyo", "Paris", "New York", "Curitiba"] }
 ```
 
 ---
 
-### 3. Adicionar Cidade ao Coletor Automático (POST)
+### 3. Adicionar Cidade ao Coletor — `POST /api/v1/coletor/cidades`
 
-Inclui uma cidade na rotina de coleta que roda a cada 10 segundos.
+Inclui uma cidade na rotina de coleta automática (ciclos a cada 10 s).
 
-- **Método**: `POST`
-- **URL**: `http://localhost:8080/api/v1/coletor/cidades`
-
-- **Corpo**:
 ```json
 { "cidade": "Madrid" }
 ```
 
 ---
 
-### 4. Forçar Ciclo Imediato de Coleta (POST)
+### 4. Forçar Ciclo de Coleta — `POST /api/v1/coletor/execucoes`
 
-Dispara imediatamente um ciclo de coleta para todas as cidades do coletor.
-
-- **Método**: `POST`
-- **URL**: `http://localhost:8080/api/v1/coletor/execucoes`
-
+Dispara imediatamente um ciclo de coleta para todas as cidades cadastradas no coletor.
 
 ---
 
-### 5. Clima em Tempo Real (GET)
+### 5. Clima em Tempo Real — `GET /api/v1/medicoes/atual?cidade=Tokyo`
 
-Busca o clima atual na OWM e salva no banco antes de retornar.
-
-- **Método**: `GET`
-- **URL**: `http://localhost:8080/api/v1/medicoes/atual?cidade=Tokyo`
+Busca o clima atual na OWM, salva no banco e retorna os dados.
 
 ---
 
-### 6. Listar Histórico Paginado (GET)
+### 6. Listar Histórico Paginado — `GET /api/v1/medicoes`
 
-- **Método**: `GET`
-- **URL**: `http://localhost:8080/api/v1/medicoes?page=1&pageSize=20`
-- **Filtros opcionais**: `cidade`, `tempMin`, `tempMax`, `precipitacao`, `sort` (datahora|temperatura|umidade|cidade), `order` (ASC|DESC)
-
-**Exemplo com filtros:**
 ```
-GET /api/v1/medicoes?cidade=Curitiba&tempMin=10&tempMax=25&sort=temperatura&order=desc&page=1&pageSize=10
+GET /api/v1/medicoes?page=1&pageSize=20
+```
+
+**Filtros opcionais:** `cidade`, `tempMin`, `tempMax`, `precipitacao`, `sort` (datahora|temperatura|umidade|cidade), `order` (ASC|DESC)
+
+**Exemplo:**
+```
+GET /api/v1/medicoes?cidade=Curitiba&tempMin=10&sort=temperatura&order=DESC&page=1&pageSize=10
 ```
 
 **Resposta:**
 ```json
 {
-  "data": [ { "id": 15, "cidade": "Curitiba", "temperatura": 19.4, "dataHora": "2026-10-16T15:20:00" } ],
+  "data": [{ "id": 15, "cidade": "Curitiba", "temperatura": 19.4, "dataHora": "2026-10-16T15:20:00" }],
   "pagination": { "page": 1, "pageSize": 10, "totalItems": 95, "totalPages": 10, "hasNext": true, "hasPrevious": false }
 }
 ```
 
 ---
 
-### 7. Obter Estatísticas Climáticas (GET)
+### 7. Estatísticas Climáticas — `GET /api/v1/medicoes/estatisticas`
 
-Calcula sobre as N medições mais recentes (padrão 50, máx 500). Resultado em cache com TTL de 30s.
+Calcula sobre as N medições mais recentes (padrão 50, máx 500). Cache TTL 30 s.
 
-- **Geral**: `GET /api/v1/medicoes/estatisticas?limite=50`
-- **Por cidade**: `GET /api/v1/medicoes/estatisticas?cidade=Curitiba&limite=20`
-- **Cross-resource**: `GET /api/v1/cidades/Curitiba/estatisticas?limite=20`
-
----
-
-### 8. Listar Cidades com Dados no Banco (GET)
-
-- **Método**: `GET`
-- **URL**: `http://localhost:8080/api/v1/cidades`
+```
+GET /api/v1/medicoes/estatisticas?limite=50
+GET /api/v1/medicoes/estatisticas?cidade=Curitiba&limite=20
+GET /api/v1/cidades/Curitiba/estatisticas?limite=20
+```
 
 ---
 
-### 9. Buscar Medição por ID (GET)
+### 8. Listar Cidades — `GET /api/v1/cidades`
 
-- **Método**: `GET`
-- **URL**: `http://localhost:8080/api/v1/medicoes/{id}`
-
----
-
-### 10. Listar Medições de uma Cidade (GET)
-
-- **Método**: `GET`
-- **URL**: `http://localhost:8080/api/v1/cidades/{cidade}/medicoes`
+Retorna todas as cidades com medições no banco. Cache TTL 2 min.
 
 ---
 
-### 11. Deletar Medição por ID (DELETE)
-
-- **Método**: `DELETE`
-- **URL**: `http://localhost:8080/api/v1/medicoes/{id}`
-
+### 9. Buscar Medição por ID — `GET /api/v1/medicoes/{id}`
 
 ---
 
-### 12. Deletar Medições por Cidade (DELETE)
-
-- **Método**: `DELETE`
-- **URL**: `http://localhost:8080/api/v1/medicoes?cidade=Miami`
-
+### 10. Medições por Cidade — `GET /api/v1/cidades/{cidade}/medicoes`
 
 ---
 
-### 13. Health Check (GET)
-
-- **Método**: `GET`
-- **URL**: `http://localhost:8080/health`
-
+### 11. Deletar por ID — `DELETE /api/v1/medicoes/{id}`
 
 ---
 
-## ⚙️ Configuração de Ambiente e Variáveis de Conexão
+### 12. Deletar por Cidade — `DELETE /api/v1/medicoes?cidade=Miami`
 
-Por motivos de segurança, nenhuma credencial sensível é mantida hardcoded no código ou no `hibernate.cfg.xml`.
-A aplicação requer a configuração das seguintes variáveis de ambiente (ou propriedades JVM via `-D`):
+---
 
-| Variável de Ambiente | Propriedade JVM (`-D`) | Descrição | Exemplo |
-| :--- | :--- | :--- | :--- |
-| `DB_URL` | `db.url` | URL de conexão JDBC ao banco MySQL | `jdbc:mysql://localhost:3306/estacao_ambiental_db?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=America/Sao_Paulo&characterEncoding=UTF-8` |
-| `DB_USER` | `db.user` | Usuário do banco de dados | `root` |
-| `DB_PASSWORD` | `db.password` | Senha do banco de dados | `sua_senha_segura` |
-| `OPENWEATHER_API_KEY` | `openweather.api.key` | Chave de API da OpenWeatherMap | `sua_chave_openweather` |
-| `PORT` | `port` *(opcional)* | Porta do servidor HTTP (padrão: 8080) | `8080` |
+### 13. Health Check — `GET /health`
 
-### ⚠️ Aviso de Segurança e Rotação de Credenciais
-> [!IMPORTANT]
-> Caso credenciais ou chaves reais tenham sido commitadas no histórico Git anterior do projeto, **recomenda-se a imediata rotação** das mesmas (redefinir a senha do usuário MySQL e gerar uma nova API Key no painel da OpenWeatherMap). O arquivo `hibernate.cfg.xml` agora contém apenas definições de pooling e dialeto, isolando completamente segredos em variáveis de ambiente.
+Retorna métricas internas: status do banco, cache (hits/misses/TTL), transações e memória JVM.
 
-*(O banco `estacao_ambiental_db` e a tabela `medicoes_ambientais` são criados ou atualizados automaticamente pelo Hibernate com base na entidade mapeada).*
+---
+
+## ⚙️ Configuração — Variáveis de Ambiente
+
+As credenciais ficam **exclusivamente** no arquivo `.env` (ignorado pelo git — nunca vai ao GitHub).
+
+| Variável | Descrição | Obrigatório |
+| :--- | :--- | :---: |
+| `DB_URL` | URL JDBC de conexão ao MySQL | ✓ |
+| `DB_USER` | Usuário do banco | ✓ |
+| `DB_PASSWORD` | Senha do banco | ✓ |
+| `OPENWEATHER_API_KEY` | Chave da API OpenWeatherMap | ✓ |
+| `PORT` | Porta do servidor (padrão: `8080`) | — |
+
+> A aplicação lê o `.env` automaticamente via `EnvLoader` no início — não é necessário exportar variáveis manualmente.
 
 ---
 
@@ -332,19 +292,19 @@ git clone https://github.com/BatistaSec/APS-2026-2-backend.git
 cd APS-2026-2-backend
 ```
 
-**2. Configure as variáveis de ambiente**
+**2. Configure o `.env`**
 ```bash
-# Copie o arquivo de exemplo
 cp .env.example .env
 ```
-Abra o `.env` e preencha:
+Abra o `.env` e preencha com suas credenciais:
 ```env
+DB_URL=jdbc:mysql://localhost:3306/estacao_ambiental_db?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=America/Sao_Paulo&characterEncoding=UTF-8
 DB_USER=root
 DB_PASSWORD=sua_senha_do_mysql
 OPENWEATHER_API_KEY=sua_chave_da_openweathermap
 ```
-> A aplicação carrega o `.env` automaticamente no início — não é necessário exportar as variáveis manualmente.
-> O banco `estacao_ambiental_db` é criado automaticamente pelo Hibernate.
+
+> O banco `estacao_ambiental_db` e a tabela `medicoes_ambientais` são criados automaticamente pelo Hibernate na primeira execução.
 
 **3. Inicie o servidor**
 ```bash
@@ -355,61 +315,38 @@ mvn compile exec:java
 
 | URL | O que é |
 |-----|---------|
-| http://localhost:8080 | Frontend principal |
-| http://localhost:8080/frontend/ | Frontend (rota alternativa) |
-| http://localhost:8080/health | Health check do sistema |
+| `http://localhost:8080` | Frontend principal |
+| `http://localhost:8080/frontend/` | Frontend (rota alternativa) |
+| `http://localhost:8080/health` | Health check do sistema |
+| `http://localhost:8080/api` | Documentação JSON dos endpoints |
 
 ---
 
-## 🌐 Internacionalização e Localização Regional (i18n / pt-BR)
+## 🌐 Internacionalização (i18n / pt-BR)
 
-A aplicação foi integralmente internacionalizada e localizada para **Português Brasileiro (pt-BR)** como idioma padrão de todas as interfaces voltadas ao usuário, mensagens do sistema, validações e documentação.
+A aplicação está internacionalizada para **Português Brasileiro (pt-BR)** em todas as mensagens, validações e erros.
 
-### 1. Padrões Regionais Adotados
-* **Idioma Padrão:** `pt-BR` (Português do Brasil).
-* **Cabeçalho de Resposta HTTP:** Todas as respostas da API incluem o cabeçalho `Content-Language: pt-BR`.
-* **Apresentação de Datas:** Formato `dd/MM/yyyy` (ex.: `19/10/2026`).
-* **Apresentação de Horários:** Padrão 24 horas `HH:mm:ss` (ex.: `15:30:00`).
-* **Formatação Numérica:** Separador decimal com vírgula e milhar com ponto nos textos e relatórios (ex.: `21,5 °C`, `65,0%`, `1.013,3 hPa`, `14,2 km/h`).
-* **Formatação Monetária:** Padrão Real Brasileiro `BRL` / `R$` (ex.: `R$ 150,00`).
-* **Mensagens e Erros RFC 7807:** Títulos e descrições semânticas em português brasileiro culto e amigável (`"Requisição Inválida"`, `"Recurso Não Encontrado"`, `"Limite de Requisições Excedido"`, etc.).
+- Datas no formato `dd/MM/yyyy`, horários em 24h (`HH:mm:ss`)
+- Erros no padrão **RFC 7807** (`type`, `title`, `status`, `detail`, `instance`)
+- Contratos JSON internos preservam ponto decimal e ISO 8601 para compatibilidade REST
+- Arquivos de recursos: `messages_pt_BR.properties` e `messages.properties` (fallback)
 
-### 2. Preservação de Padrões Técnicos Internos
-* **Contratos JSON e APIs:** O formato interno de transporte JSON preserva números com ponto decimal (`.` no lugar de `,`) e datas em ISO 8601 (`yyyy-MM-dd'T'HH:mm:ss`), garantindo estrita aderência às especificações REST e compatibilidade universal com frontends e bibliotecas clientes.
-* **Persistência MySQL:** Estrutura de colunas e tipos técnicos permanecem inalterados.
-
-### 3. Como Manter ou Alternar o Idioma
-O sistema utiliza o padrão Enterprise Java `ResourceBundle` gerenciado pela classe `I18n.java` e arquivos de recursos:
-* `src/main/resources/messages_pt_BR.properties` (Dicionário brasileiro).
-* `src/main/resources/messages.properties` (Bundle padrão fallback).
-
-Para manter ou forçar o idioma via linha de comando ou container Docker:
-```powershell
+Para forçar o idioma na execução:
+```bash
 mvn compile exec:java -Duser.language=pt -Duser.country=BR
 ```
 
-
 ---
 
-## Melhorias Pendentes
-
-### Confiabilidade e Resiliência
-* **Tratamento de Erros Padronizado (RFC 7807):** Unificar todos os erros em um formato semântico único com 	ype, 	itle, status, detail, instance e 	imestamp.
-* **Resiliência com a OpenWeatherMap:** Timeout explícito (3s) com até 3 tentativas e backoff exponencial. Fallback para a última medição válida em cache ou banco quando a OWM oscilar.
-
-### Segurança
-* **CORS:** Restringir Access-Control-Allow-Origin para origens conhecidas em produção (evitar * indiscriminado).
-* **Cabeçalhos:** Adicionar proteção contra MIME-sniffing e clickjacking.
-
-## Otimizações Implementadas
+## 🔧 Otimizações Implementadas
 
 | # | Otimização | Detalhe |
 |---|---|---|
-| 1 | **HikariCP** | Pool de conexões de alta performance (min 5, max 20, reciclagem a cada 30 min) |
-| 2 | **DatabaseConnectionManager** | Gerencia sessões e transações ACID com rollback automático e métricas expostas no /health |
-| 3 | **CacheManager (TTL)** | ConcurrentHashMap com expiração: lista de cidades (2 min), estatísticas (30 s). Invalidação proativa em toda escrita |
-| 4 | **Sem N+1** | Estatísticas calculadas com uma única query HQL de projeção (COUNT, MIN, MAX, AVG). Batch de 25 inserts via JDBC batching |
-| 5 | **JsonSerializer** | Serialização com StringBuilder pré-alocado, sem regex, sem overhead de GC |
-| 6 | **GZIP** | Compressão automática de respostas acima de 256 bytes quando o cliente envia Accept-Encoding: gzip |
-| 7 | **AsyncLogger** | Fila LinkedBlockingQueue (4096 eventos) consumida por thread daemon — logs não bloqueiam as threads HTTP |
-
+| 1 | **DatabaseConnectionManager** | Gerencia sessões e transações ACID com rollback automático e métricas expostas no `/health` |
+| 2 | **CacheManager (TTL)** | `ConcurrentHashMap` com expiração: cidades (2 min), estatísticas (30 s). Invalidação proativa em toda escrita |
+| 3 | **Sem N+1** | Estatísticas calculadas com uma única query HQL de projeção (COUNT, MIN, MAX, AVG) |
+| 4 | **JDBC Batching** | Batch de 25 inserts configurado no Hibernate para operações em lote |
+| 5 | **GZIP** | Compressão automática de respostas acima de 256 bytes quando o cliente envia `Accept-Encoding: gzip` |
+| 6 | **AsyncLogger** | Fila `LinkedBlockingQueue` (4096 eventos) consumida por thread daemon — logs não bloqueiam as threads HTTP |
+| 7 | **Virtual Threads** | Executor `newVirtualThreadPerTaskExecutor()` (Java 21) para alta concorrência sem overhead de pool |
+| 8 | **EnvLoader** | Carrega o `.env` na inicialização — credenciais nunca hardcoded no código versionado |
