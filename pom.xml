@@ -13,7 +13,6 @@
         <maven.compiler.target>21</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <hibernate.version>6.5.2.Final</hibernate.version>
-        <hikaricp.version>5.1.0</hikaricp.version>
     </properties>
 
     <dependencies>
@@ -24,18 +23,6 @@
             <version>${hibernate.version}</version>
         </dependency>
 
-        <!-- HikariCP & Hibernate Connection Pooling de alta performance -->
-        <dependency>
-            <groupId>org.hibernate.orm</groupId>
-            <artifactId>hibernate-hikaricp</artifactId>
-            <version>${hibernate.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>com.zaxxer</groupId>
-            <artifactId>HikariCP</artifactId>
-            <version>${hikaricp.version}</version>
-        </dependency>
-
         <!-- Driver MySQL Connector/J -->
         <dependency>
             <groupId>com.mysql</groupId>
@@ -44,13 +31,6 @@
         </dependency>
 
 
-        <!-- JUnit 5 para testes automatizados -->
-        <dependency>
-            <groupId>org.junit.jupiter</groupId>
-            <artifactId>junit-jupiter</artifactId>
-            <version>5.10.2</version>
-            <scope>test</scope>
-        </dependency>
     </dependencies>
 
     <build>

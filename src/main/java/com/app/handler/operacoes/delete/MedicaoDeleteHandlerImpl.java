@@ -3,32 +3,19 @@ package com.app.handler.operacoes.delete;
 import com.app.dao.exclusao.DeletarMedicaoDao;
 import com.app.handler.http.request.HttpRequest;
 import com.app.handler.http.response.HttpResponseSender;
-import com.app.handler.security.SecurityService;
 
 import java.io.IOException;
 
 public class MedicaoDeleteHandlerImpl implements MedicaoDeleteHandler {
 
     private final DeletarMedicaoDao deletarDao;
-    private final SecurityService securityService;
 
     public MedicaoDeleteHandlerImpl(DeletarMedicaoDao deletarDao) {
-        this(deletarDao, new SecurityService());
-    }
-
-    public MedicaoDeleteHandlerImpl(DeletarMedicaoDao deletarDao, SecurityService securityService) {
         this.deletarDao = deletarDao;
-        this.securityService = securityService;
     }
 
     @Override
     public void tratar(HttpRequest req, HttpResponseSender send) throws IOException {
-
-        if (!securityService.autorizarOperacaoEscrita(req)) {
-            send.unauthorized("Acesso não autorizado: token de autenticação (Bearer) ausente ou inválido para operação de exclusão.");
-            return;
-        }
-
 
         String cidade = req.getQueryParam("cidade");
         if (cidade != null && !cidade.isBlank()) {

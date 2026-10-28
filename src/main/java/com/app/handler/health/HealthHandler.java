@@ -4,7 +4,6 @@ import com.app.handler.http.request.HttpRequest;
 import com.app.handler.http.request.HttpRequestImpl;
 import com.app.handler.http.response.HttpResponseSender;
 import com.app.handler.http.response.HttpResponseSenderImpl;
-import com.app.handler.security.SecurityService;
 import com.app.util.cache.CacheManager;
 import com.app.util.database.DatabaseConnectionManager;
 import com.sun.net.httpserver.HttpExchange;
@@ -18,25 +17,18 @@ import java.util.Locale;
 /**
  * GET /health e GET /api/v1/health
  *
- * Rota de administrador: exige Bearer token de admin.
  * Expõe métricas internas (pool HikariCP, cache, JVM, transações).
  */
 public class HealthHandler implements HttpHandler {
 
     private final DatabaseConnectionManager dbManager;
-    private final SecurityService securityService;
 
     public HealthHandler() {
-        this(DatabaseConnectionManager.getInstance(), new SecurityService());
+        this(DatabaseConnectionManager.getInstance());
     }
 
     public HealthHandler(DatabaseConnectionManager dbManager) {
-        this(dbManager, new SecurityService());
-    }
-
-    public HealthHandler(DatabaseConnectionManager dbManager, SecurityService securityService) {
-        this.dbManager       = dbManager;
-        this.securityService = securityService;
+        this.dbManager = dbManager;
     }
 
     @Override
@@ -46,12 +38,6 @@ public class HealthHandler implements HttpHandler {
 
         if (!"GET".equalsIgnoreCase(req.getMethod())) {
             send.metodoNaoPermitido();
-            return;
-        }
-
-        // Apenas administradores podem ver métricas internas do sistema
-        if (!securityService.autorizarOperacaoEscrita(req)) {
-            send.unauthorized("Acesso restrito: rota de administrador. Envie Authorization: Bearer <token>.");
             return;
         }
 
@@ -72,7 +58,7 @@ public class HealthHandler implements HttpHandler {
                 "\"versao\":\"1.0.0\"," +
                 "\"componentes\":{" +
                 "\"bancoDeDados\":\"%s\"," +
-                "\"connectionPooling\":\"HikariCP (Ativo)\"," +
+                "\"connectionPooling\":\"Hibernate (DriverManager)\"," +
                 "\"coletorSegundoPlano\":\"UP\"," +
                 "\"openWeather\":\"CONFIGURADO\"" +
                 "}," +

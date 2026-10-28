@@ -43,7 +43,8 @@ public class WeatherProxyHandler implements HttpHandler {
         if (env != null && !env.isBlank()) return env.trim();
         String prop = System.getProperty("openweather.api.key");
         if (prop != null && !prop.isBlank()) return prop.trim();
-        return "APIKEY_REMOVIDA_DO_HISTORICO";
+        // Sem fallback hardcoded — a chave deve vir do .env (OPENWEATHER_API_KEY)
+        return null;
     }
 
     @Override
@@ -85,6 +86,8 @@ public class WeatherProxyHandler implements HttpHandler {
                 proxyOWM(FORECAST_URL, params, exchange, send);
             } else if (path.startsWith("/proxy/tiles/")) {
                 proxyTile(path, exchange);
+            } else if (path.endsWith("/reverse")) {
+                proxyReverseGeo(params, exchange, send);
             } else {
                 send.naoEncontrado("Endpoint de proxy nao reconhecido: " + path);
             }
@@ -141,6 +144,34 @@ public class WeatherProxyHandler implements HttpHandler {
         try (OutputStream os = exchange.getResponseBody()) {
             os.write(body);
         }
+    }
+
+    /**
+     * Proxy de reverse geocode via Nominatim — frontend nunca chama Nominatim diretamente.
+     * GET /proxy/reverse?lat={lat}&lon={lon}
+     */
+    private void proxyReverseGeo(Map<String, String> params, HttpExchange exchange, HttpResponseSender send) throws Exception {
+        String lat = params.getOrDefault("lat", "");
+        String lon = params.getOrDefault("lon", "");
+        String url = String.format(
+            "https://nominatim.openstreetmap.org/reverse?lat=%s&lon=%s&format=json&accept-language=pt-BR",
+            URLEncoder.encode(lat, StandardCharsets.UTF_8),
+            URLEncoder.encode(lon, StandardCharsets.UTF_8)
+        );
+        HttpRequest req = HttpRequest.newBuilder()
+                .uri(URI.create(url))
+                .timeout(Duration.ofSeconds(8))
+                .header("User-Agent", "APS-Estacao-Ambiental/1.0 (academic project)")
+                .header("Accept", "application/json")
+                .GET()
+                .build();
+        HttpResponse<byte[]> resp = httpClient.send(req, HttpResponse.BodyHandlers.ofByteArray());
+        byte[] body = resp.body();
+        exchange.getResponseHeaders().set("Content-Type", "application/json; charset=UTF-8");
+        exchange.getResponseHeaders().set("Access-Control-Allow-Origin", "*");
+        exchange.getResponseHeaders().set("Cache-Control", "public, max-age=3600");
+        exchange.sendResponseHeaders(resp.statusCode(), body.length);
+        try (OutputStream os = exchange.getResponseBody()) { os.write(body); }
     }
 
     /**

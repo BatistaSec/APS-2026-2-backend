@@ -97,14 +97,41 @@ try { regionNames = new Intl.DisplayNames(['pt-BR'], { type: 'region' }); } catc
 const regionName = (code) => { try { return (regionNames && regionNames.of(code)) || code || ''; } catch { return code || ''; } };
 
 async function searchCities(name) {
-  const list = await fetchJSON(proxyUrl(GEO_URL, { q: name, limit: '5' }));
-  return list.map((p) => ({
+  const list = await fetchJSON(proxyUrl(GEO_URL, { q: name, limit: '10' }));
+  const mapped = list.map((p) => ({
     name: (p.local_names && p.local_names.pt) || p.name,
     admin1: p.state || '',
     country: regionName(p.country),
+    countryCode: (p.country || '').toUpperCase(),
     latitude: p.lat,
     longitude: p.lon,
   }));
+
+  // 1. Separar resultados do Brasil dos demais
+  const br = mapped.filter((p) => p.countryCode === 'BR');
+  const others = mapped.filter((p) => p.countryCode !== 'BR');
+
+  // 2. Dentro do Brasil, manter apenas um por estado (evita múltiplos "São Paulo" de estados diferentes)
+  const seenState = new Set();
+  const brUnique = br.filter((p) => {
+    const key = p.admin1 || p.name;
+    if (seenState.has(key)) return false;
+    seenState.add(key);
+    return true;
+  });
+
+  // 3. Montar lista: Brasil primeiro, depois outros países (sem repetir país)
+  const seenCountry = new Set();
+  const othersUnique = others.filter((p) => {
+    if (seenCountry.has(p.countryCode)) return false;
+    seenCountry.add(p.countryCode);
+    return true;
+  });
+
+  const result = [...brUnique, ...othersUnique].slice(0, 5);
+
+  // Remover countryCode interno
+  return result.map(({ countryCode, ...rest }) => rest);
 }
 
 function setStatus(text, onRetry) {
@@ -377,6 +404,28 @@ els.form.addEventListener('submit', async (e) => {
   }
 });
 
+// ─── Autocomplete ao digitar ────────────────────────────────────────────────
+let autocompleteTimer = null;
+
+els.q.addEventListener('input', () => {
+  clearTimeout(autocompleteTimer);
+  const name = els.q.value.trim();
+  if (name.length < 2) { hideResults(); setStatus(''); return; }
+  autocompleteTimer = setTimeout(async () => {
+    try {
+      const places = await searchCities(name);
+      if (places.length === 0) {
+        hideResults();
+      } else {
+        setStatus('');
+        showResults(places);
+      }
+    } catch {
+      // Falha silenciosa no autocomplete — não exibe erro enquanto digita
+    }
+  }, 350);
+});
+
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') hideResults(); });
 
 els.daily.addEventListener('click', (e) => {
@@ -432,10 +481,9 @@ async function handleMapClick(lat, lng) {
   mapMarker.bindPopup(`<div class="map-popup-loading">⏳ Buscando local…</div>`).openPopup();
 
   try {
-    // Reverse geocode via Nominatim (OpenStreetMap) — sem key
+    // Reverse geocode via proxy do backend — frontend não acessa Nominatim diretamente
     const resp = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&accept-language=pt-BR`,
-      { headers: { 'Accept-Language': 'pt-BR' } }
+      `${backendUrl()}/proxy/reverse?lat=${lat}&lon=${lng}`
     );
     const geo = await resp.json();
 

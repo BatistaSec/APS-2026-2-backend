@@ -1,7 +1,6 @@
 package com.app;
 
 import com.app.handler.MedicaoApiHandler;
-import com.app.handler.auth.AdminAuthHandler;
 import com.app.handler.health.HealthHandler;
 import com.app.handler.http.request.HttpRequest;
 import com.app.handler.http.request.HttpRequestImpl;
@@ -11,6 +10,7 @@ import com.app.handler.proxy.FrontendStaticHandler;
 import com.app.handler.proxy.WeatherProxyHandler;
 import com.app.service.MonitoramentoService;
 import com.app.service.coleta.ColetorAgendadoService;
+import com.app.util.EnvLoader;
 import com.app.util.database.DatabaseConnectionManager;
 import com.app.util.i18n.I18n;
 import com.app.util.logging.AsyncLogger;
@@ -28,12 +28,15 @@ public class Main {
     private static final int PORTA_PADRAO = 8080;
 
     public static void main(String[] args) {
+        // Carrega credenciais do .env (gitignored) antes de qualquer uso do Hibernate/OWM
+        EnvLoader.carregar();
+
         Locale.setDefault(I18n.LOCALE_PADRAO);
 
         AsyncLogger.info("==================================================================");
         AsyncLogger.info("     SISTEMA DE ESTAÇÃO DE MONITORAMENTO AMBIENTAL (APS)          ");
-        AsyncLogger.info("     Backend Java 21 + Hibernate 6 + MySQL + HikariCP Pooling     ");
-        AsyncLogger.info("     Alta Performance: Cache, GZIP, Async Logging, Query Opt      ");
+        AsyncLogger.info("     Backend Java 21 + Hibernate 6 + MySQL                        ");
+        AsyncLogger.info("     Cache em Memória, GZIP, Logging Assíncrono                   ");
         AsyncLogger.info("==================================================================");
 
         try {
@@ -67,20 +70,24 @@ public class Main {
 
             MedicaoApiHandler apiHandler = new MedicaoApiHandler(monitoramentoService);
             HealthHandler healthHandler = new HealthHandler();
-            AdminAuthHandler authHandler = new AdminAuthHandler();
             WeatherProxyHandler proxyHandler = new WeatherProxyHandler();
             FrontendStaticHandler frontendHandler = new FrontendStaticHandler(frontendDir);
 
-            // Rota raiz com documentação dos endpoints e versão da API
+            // Rota raiz — serve o frontend diretamente
             server.createContext("/", exchange -> {
                 HttpRequest req = new HttpRequestImpl(exchange);
                 HttpResponseSender send = new HttpResponseSenderImpl(exchange);
+                String path = req.getPath();
 
-                if (!"/".equals(req.getPath())) {
-                    send.naoEncontrado("Rota não encontrada");
+                // Serve index.html na raiz
+                if ("/".equals(path) || "/index.html".equals(path)) {
+                    frontendHandler.handle(exchange);
                     return;
                 }
-                String infoApi = """
+
+                // Documenta a API em /api
+                if ("/api".equals(path)) {
+                    String infoApi = """
                 {
                   "servico": "API Estação de Monitoramento Ambiental (APS - RESTful v1)",
                   "versao": "1.0.0",
@@ -88,7 +95,6 @@ public class Main {
                   "status": "online",
                   "fonteMeteorologica": "API Real do OpenWeatherMap (com Cache em Memória e Novas Tentativas Automáticas)",
                   "banco": "MySQL (Hibernate 6 + HikariCP Connection Pooling)",
-                  "taxaLimite": "60 requisições/minuto por IP",
                   "otimizacoes": [
                     "Pool de Conexões (HikariCP com limite de 20 conexões e tempo limite de inatividade)",
                     "Gerenciador de Conexões (Controle centralizado de transações ACID e métricas)",
@@ -96,7 +102,7 @@ public class Main {
                     "Consultas Agregadas Otimizadas (Agregação SQL direta no banco sem consultas N+1)",
                     "Compactação de Resposta (GZIP automático para clientes compatíveis)",
                     "Registro Assíncrono de Logs (Fila de eventos desacoplada das threads de requisição)",
-                    "Controle de Taxa de Requisições e Detalhamento Padronizado de Erros (RFC 7807)"
+                    "Detalhamento Padronizado de Erros (RFC 7807)"
                   ],
                   "endpoints": [
                     "GET /health (Monitoramento de integridade do sistema, pool HikariCP e cache)",
@@ -118,13 +124,15 @@ public class Main {
                   ]
                 }
                 """;
-                send.sucesso(infoApi);
+                    send.sucesso(infoApi);
+                    return;
+                }
+
+                // Qualquer outra rota desconhecida
+                send.naoEncontrado("Rota não encontrada");
             });
 
-            // Autenticação de administrador
-            server.createContext("/auth", authHandler);
-
-            // Endpoints de Saúde (Health Checks) — somente admin
+            // Endpoints de Saúde (Health Checks)
             server.createContext("/health", healthHandler);
             server.createContext("/api/v1/health", healthHandler);
 
@@ -143,9 +151,8 @@ public class Main {
             // Proxy reverso: repassa chamadas OWM protegendo a API key no servidor
             server.createContext("/proxy", proxyHandler);
 
-            // Servidor de arquivos estáticos: serve o frontend em /frontend/* e /admin
+            // Servidor de arquivos estáticos: serve o frontend em /frontend/*
             server.createContext("/frontend", frontendHandler);
-            server.createContext("/admin", frontendHandler);
             // ────────────────────────────────────────────────────────────────────
 
             server.start();
@@ -153,9 +160,7 @@ public class Main {
             AsyncLogger.info("------------------------------------------------------------------");
             AsyncLogger.info("  Base URL:          http://localhost:" + porta + "/");
             AsyncLogger.info("  Frontend:          http://localhost:" + porta + "/frontend/");
-            AsyncLogger.info("  Admin Panel:       http://localhost:" + porta + "/admin");
-            AsyncLogger.info("  Login Admin:       POST http://localhost:" + porta + "/auth/login  {usuario,senha}");
-            AsyncLogger.info("  Health (admin):    http://localhost:" + porta + "/health  [Bearer token]");
+            AsyncLogger.info("  Health:            http://localhost:" + porta + "/health");
             AsyncLogger.info("  Proxy OWM:         http://localhost:" + porta + "/proxy/weather?lat=-23.5&lon=-46.6");
             AsyncLogger.info("  GET Paginado:      http://localhost:" + porta + "/api/v1/medicoes?page=1&pageSize=10");
             AsyncLogger.info("  GET Estatisticas:  http://localhost:" + porta + "/api/v1/medicoes/estatisticas");

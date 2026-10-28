@@ -50,8 +50,8 @@ public class OpenWeatherClientImpl implements OpenWeatherClient {
         if (env != null && !env.isBlank()) return env.trim();
         String prop = System.getProperty("openweather.api.key");
         if (prop != null && !prop.isBlank()) return prop.trim();
-        // Fallback para projeto acadêmico: chave padrão (sem variável de ambiente necessária)
-        return "APIKEY_REMOVIDA_DO_HISTORICO";
+        // Sem fallback hardcoded — a chave deve vir do .env (OPENWEATHER_API_KEY)
+        return null;
     }
 
     @Override

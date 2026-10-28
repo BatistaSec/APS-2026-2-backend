@@ -51,12 +51,6 @@ public class FrontendStaticHandler implements HttpHandler {
 
         String requestPath = exchange.getRequestURI().getPath();
 
-        // Rota /admin e /admin/ → serve admin.html
-        if (requestPath.equals("/admin") || requestPath.equals("/admin/")) {
-            servirArquivo(exchange, frontendDir.resolve("admin.html"));
-            return;
-        }
-
         // Redireciona /frontend ou /frontend/ → index.html
         if (requestPath.equals("/frontend") || requestPath.equals("/frontend/")) {
             requestPath = "/frontend/index.html";

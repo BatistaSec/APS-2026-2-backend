@@ -2,7 +2,6 @@ package com.app.handler.operacoes.post;
 
 import com.app.handler.http.request.HttpRequest;
 import com.app.handler.http.response.HttpResponseSender;
-import com.app.handler.security.SecurityService;
 import com.app.model.MedicaoAmbiental;
 import com.app.model.dto.request.MedicaoRequest;
 import com.app.model.dto.request.SincronizacaoRequest;
@@ -22,31 +21,17 @@ public class MedicaoPostHandlerImpl implements MedicaoPostHandler {
     private final OpenWeatherClient openWeatherClient;
     private final RegistroMedicaoService registroService;
     private final ColetorAgendadoService coletorService;
-    private final SecurityService securityService;
 
     public MedicaoPostHandlerImpl(OpenWeatherClient openWeatherClient,
                                   RegistroMedicaoService registroService,
                                   ColetorAgendadoService coletorService) {
-        this(openWeatherClient, registroService, coletorService, new SecurityService());
-    }
-
-    public MedicaoPostHandlerImpl(OpenWeatherClient openWeatherClient,
-                                  RegistroMedicaoService registroService,
-                                  ColetorAgendadoService coletorService,
-                                  SecurityService securityService) {
         this.openWeatherClient = openWeatherClient;
         this.registroService = registroService;
         this.coletorService = coletorService;
-        this.securityService = securityService;
     }
 
     @Override
     public void tratar(HttpRequest req, HttpResponseSender send) throws IOException {
-
-        if (!securityService.autorizarOperacaoEscrita(req)) {
-            send.unauthorized("Acesso não autorizado: token de autenticação (Bearer) ausente ou inválido para operação de escrita.");
-            return;
-        }
 
         String path = req.getPath();
         String corpo = req.getBody();

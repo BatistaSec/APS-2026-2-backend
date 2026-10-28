@@ -10,7 +10,6 @@ import com.app.handler.operacoes.get.MedicaoGetHandler;
 import com.app.handler.operacoes.get.MedicaoGetHandlerImpl;
 import com.app.handler.operacoes.post.MedicaoPostHandler;
 import com.app.handler.operacoes.post.MedicaoPostHandlerImpl;
-import com.app.handler.security.RateLimiter;
 import com.app.service.MonitoramentoService;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
@@ -22,13 +21,8 @@ public class MedicaoApiHandler implements HttpHandler {
     private final MedicaoGetHandler getHandler;
     private final MedicaoPostHandler postHandler;
     private final MedicaoDeleteHandler deleteHandler;
-    private final RateLimiter rateLimiter;
 
     public MedicaoApiHandler(MonitoramentoService service) {
-        this(service, new RateLimiter());
-    }
-
-    public MedicaoApiHandler(MonitoramentoService service, RateLimiter rateLimiter) {
         this(
                 new MedicaoGetHandlerImpl(
                         service.getConsultaDao(),
@@ -43,25 +37,16 @@ public class MedicaoApiHandler implements HttpHandler {
                 ),
                 new MedicaoDeleteHandlerImpl(
                         service.getDeletarDao()
-                ),
-                rateLimiter
+                )
         );
     }
 
     public MedicaoApiHandler(MedicaoGetHandler getHandler,
                              MedicaoPostHandler postHandler,
                              MedicaoDeleteHandler deleteHandler) {
-        this(getHandler, postHandler, deleteHandler, new RateLimiter());
-    }
-
-    public MedicaoApiHandler(MedicaoGetHandler getHandler,
-                             MedicaoPostHandler postHandler,
-                             MedicaoDeleteHandler deleteHandler,
-                             RateLimiter rateLimiter) {
         this.getHandler = getHandler;
         this.postHandler = postHandler;
         this.deleteHandler = deleteHandler;
-        this.rateLimiter = rateLimiter;
     }
 
     @Override
@@ -72,20 +57,6 @@ public class MedicaoApiHandler implements HttpHandler {
 
         if ("OPTIONS".equalsIgnoreCase(method)) {
             send.noContent();
-            return;
-        }
-
-
-        String clientIp = req.getClientIp();
-        send.setHeader("X-RateLimit-Limit", String.valueOf(rateLimiter.getMaxRequests()));
-        send.setHeader("X-RateLimit-Remaining", String.valueOf(rateLimiter.getRemaining(clientIp)));
-        send.setHeader("X-RateLimit-Reset", String.valueOf(rateLimiter.getResetSeconds(clientIp)));
-
-        if (!rateLimiter.tryAcquire(clientIp)) {
-            send.tooManyRequests(
-                    com.app.util.i18n.I18n.get("erro.limite_requisicoes.detalhe", clientIp, rateLimiter.getResetSeconds(clientIp)),
-                    rateLimiter.getResetSeconds(clientIp)
-            );
             return;
         }
 
