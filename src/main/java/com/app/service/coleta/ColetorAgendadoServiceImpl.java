@@ -5,6 +5,7 @@ import com.app.service.openweather.OpenWeatherClient;
 import com.app.service.openweather.OpenWeatherClientImpl;
 import com.app.service.registro.RegistroMedicaoService;
 import com.app.service.registro.RegistroMedicaoServiceImpl;
+import com.app.util.logging.AsyncLogger;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -69,8 +70,8 @@ public class ColetorAgendadoServiceImpl implements ColetorAgendadoService {
 
     @Override
     public void iniciar() {
-        System.out.println("[+] Iniciando Coletor Agendado de 10s (OpenWeatherMap)...");
-        System.out.println("    Cidades no pool inicial: " + cidades);
+        AsyncLogger.info("[+] Iniciando Coletor Agendado de 10s (OpenWeatherMap)...");
+        AsyncLogger.info("    Cidades no pool inicial: " + cidades);
         scheduler.scheduleAtFixedRate(this::executarCicloColeta, 0, 10, TimeUnit.SECONDS);
     }
 
@@ -86,18 +87,18 @@ public class ColetorAgendadoServiceImpl implements ColetorAgendadoService {
             MedicaoAmbiental salva = registroMedicaoService.registrar(leitura);
 
             String local = (salva.getCidade() != null && !salva.getCidade().isBlank()) ? salva.getCidade() : salva.getEstacaoId();
-            System.out.printf("[COLETA 10s] [%s] ID: #%d | 🌡️ %.1f°C (Sensação: %.1f°C) | 💧 %.1f%% | 🌧️ %s | 💨 %.1f km/h (%s)%n",
+            AsyncLogger.info(String.format("[COLETA 10s] [%s] ID: #%d | %.1f°C (Sensacao: %.1f°C) | %.1f%% | %s | %.1f km/h (%s)",
                     local,
                     salva.getId(),
                     salva.getTemperatura(),
-                    salva.getSensacaoTermica(),
+                    salva.getSensacaoTermica() != null ? salva.getSensacaoTermica() : salva.getTemperatura(),
                     salva.getUmidade(),
                     Boolean.TRUE.equals(salva.getPrecipitacao()) ? "Chuva" : "Sem Chuva",
                     salva.getVelocidadeVento(),
-                    salva.getDirecaoVento());
+                    salva.getDirecaoVento() != null ? salva.getDirecaoVento() : "N/A"));
 
         } catch (Exception e) {
-            System.err.println("[-] Falha na coleta automática para '" + cidadeAlvo + "': " + e.getMessage());
+            AsyncLogger.error("[-] Falha na coleta automatica para '" + cidadeAlvo + "': " + e.getMessage(), e);
         }
     }
 
@@ -105,7 +106,7 @@ public class ColetorAgendadoServiceImpl implements ColetorAgendadoService {
     public void adicionarCidade(String cidade) {
         if (cidade != null && !cidade.isBlank() && !cidades.contains(cidade.trim())) {
             cidades.add(cidade.trim());
-            System.out.println("[+] Nova cidade adicionada ao coletor: " + cidade.trim());
+            AsyncLogger.info("[+] Nova cidade adicionada ao coletor: " + cidade.trim());
         }
     }
 
@@ -121,7 +122,7 @@ public class ColetorAgendadoServiceImpl implements ColetorAgendadoService {
 
     @Override
     public void parar() {
-        System.out.println("[*] Encerrando Coletor Agendado...");
+        AsyncLogger.info("[*] Encerrando Coletor Agendado...");
         scheduler.shutdown();
         try {
             if (!scheduler.awaitTermination(2, TimeUnit.SECONDS)) {

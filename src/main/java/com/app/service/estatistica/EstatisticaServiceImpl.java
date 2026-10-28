@@ -8,7 +8,6 @@ import com.app.model.dto.response.EstatisticasClimaticas;
 import java.util.DoubleSummaryStatistics;
 import java.util.List;
 
-
 public class EstatisticaServiceImpl implements EstatisticaService {
 
     private final ConsultaMedicaoDao consultaMedicaoDao;
@@ -23,7 +22,15 @@ public class EstatisticaServiceImpl implements EstatisticaService {
 
     @Override
     public EstatisticasClimaticas calcularEstatisticasRecentes(int limite) {
-        List<MedicaoAmbiental> medicoes = consultaMedicaoDao.listarUltimas(limite > 0 ? limite : 50);
+        int safeLimite = limite > 0 ? limite : 50;
+        // Otimização: Tenta agregação direta no banco em query única
+        EstatisticasClimaticas agregada = consultaMedicaoDao.calcularEstatisticasAgregadas(null, safeLimite);
+        if (agregada != null) {
+            return agregada;
+        }
+
+        // Fallback em memória para compatibilidade com mocks de teste
+        List<MedicaoAmbiental> medicoes = consultaMedicaoDao.listarUltimas(safeLimite);
         return calcularEstatisticas(medicoes);
     }
 
@@ -32,7 +39,15 @@ public class EstatisticaServiceImpl implements EstatisticaService {
         if (cidade == null || cidade.isBlank()) {
             return calcularEstatisticasRecentes(limite);
         }
-        List<MedicaoAmbiental> medicoes = consultaMedicaoDao.listarPorCidade(cidade, limite > 0 ? limite : 50);
+        int safeLimite = limite > 0 ? limite : 50;
+        // Otimização: Tenta agregação direta no banco em query única com cache
+        EstatisticasClimaticas agregada = consultaMedicaoDao.calcularEstatisticasAgregadas(cidade, safeLimite);
+        if (agregada != null) {
+            return agregada;
+        }
+
+        // Fallback em memória para compatibilidade com mocks de teste
+        List<MedicaoAmbiental> medicoes = consultaMedicaoDao.listarPorCidade(cidade, safeLimite);
         return calcularEstatisticas(medicoes);
     }
 

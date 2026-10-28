@@ -6,8 +6,6 @@ import com.app.dao.exclusao.DeletarMedicaoDao;
 import com.app.dao.exclusao.DeletarMedicaoDaoImpl;
 import com.app.dao.salvar.SalvarMedicaoDao;
 import com.app.dao.salvar.SalvarMedicaoDaoImpl;
-import com.app.model.MedicaoAmbiental;
-import com.app.model.dto.response.EstatisticasClimaticas;
 import com.app.service.calculo.CalculadoraSensacaoTermica;
 import com.app.service.calculo.CalculadoraSensacaoTermicaImpl;
 import com.app.service.coleta.ColetorAgendadoService;

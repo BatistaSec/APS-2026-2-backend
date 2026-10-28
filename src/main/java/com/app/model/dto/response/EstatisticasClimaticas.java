@@ -17,7 +17,7 @@ public record EstatisticasClimaticas(
 
     public String toJson() {
         if (totalAnalisadas == 0) {
-            return "{\"total\":0,\"mensagem\":\"Nenhuma medicao disponivel ainda.\"}";
+            return "{\"total\":0,\"mensagem\":\"Nenhuma medição disponível até o momento.\"}";
         }
 
         return String.format(Locale.US,

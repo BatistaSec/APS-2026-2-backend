@@ -2,8 +2,8 @@ package com.app.model;
 
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.Locale;
+import java.util.Objects;
 
 
 @Entity
@@ -13,8 +13,6 @@ import java.util.Locale;
     @Index(name = "idx_cidade", columnList = "cidade")
 })
 public class MedicaoAmbiental {
-
-    private static final DateTimeFormatter ISO_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -55,13 +53,6 @@ public class MedicaoAmbiental {
 
 
     public MedicaoAmbiental() {
-    }
-
-    public MedicaoAmbiental(String estacaoId, LocalDateTime dataHora, Double temperatura, Double umidade,
-                            Boolean precipitacao, Double velocidadeVento, Double pressaoAtmosferica,
-                            String direcaoVento, Double indiceUv, Double sensacaoTermica) {
-        this(estacaoId, null, dataHora, temperatura, umidade, precipitacao, velocidadeVento,
-                pressaoAtmosferica, direcaoVento, indiceUv, sensacaoTermica);
     }
 
     public MedicaoAmbiental(String estacaoId, String cidade, LocalDateTime dataHora, Double temperatura, Double umidade,
@@ -179,42 +170,43 @@ public class MedicaoAmbiental {
     }
 
 
-    public String toJson() {
-        String dataHoraStr = dataHora != null ? dataHora.format(ISO_FORMATTER) : "";
-        return String.format(Locale.US,
-                "{" +
-                "\"id\":%d," +
-                "\"estacaoId\":\"%s\"," +
-                "\"cidade\":\"%s\"," +
-                "\"dataHora\":\"%s\"," +
-                "\"temperatura\":%.2f," +
-                "\"umidade\":%.2f," +
-                "\"precipitacao\":%b," +
-                "\"velocidadeVento\":%.2f," +
-                "\"pressaoAtmosferica\":%.2f," +
-                "\"direcaoVento\":\"%s\"," +
-                "\"indiceUv\":%.2f," +
-                "\"sensacaoTermica\":%.2f" +
-                "}",
-                id != null ? id : 0,
-                estacaoId != null ? estacaoId : "",
-                cidade != null ? cidade : "",
-                dataHoraStr,
-                temperatura != null ? temperatura : 0.0,
-                umidade != null ? umidade : 0.0,
-                precipitacao != null ? precipitacao : false,
-                velocidadeVento != null ? velocidadeVento : 0.0,
-                pressaoAtmosferica != null ? pressaoAtmosferica : 0.0,
-                direcaoVento != null ? direcaoVento : "N",
-                indiceUv != null ? indiceUv : 0.0,
-                sensacaoTermica != null ? sensacaoTermica : 0.0
-        );
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null) return false;
+        Class<?> oEffectiveClass = (o instanceof org.hibernate.proxy.HibernateProxy proxy)
+                ? proxy.getHibernateLazyInitializer().getPersistentClass()
+                : o.getClass();
+        Class<?> thisEffectiveClass = (this instanceof org.hibernate.proxy.HibernateProxy proxy)
+                ? proxy.getHibernateLazyInitializer().getPersistentClass()
+                : this.getClass();
+        if (thisEffectiveClass != oEffectiveClass) return false;
+        MedicaoAmbiental that = (MedicaoAmbiental) o;
+        return getId() != null && getId().equals(that.getId());
+    }
+
+    @Override
+    public int hashCode() {
+        return (this instanceof org.hibernate.proxy.HibernateProxy proxy)
+                ? proxy.getHibernateLazyInitializer().getPersistentClass().hashCode()
+                : getClass().hashCode();
     }
 
     @Override
     public String toString() {
-        return String.format(Locale.US,
-                "MedicaoAmbiental[id=%d, estacao='%s', cidade='%s', hora=%s, temp=%.1f°C, umi=%.1f%%, chuva=%b, vento=%.1fkm/h, pressao=%.1fhPa, dir=%s, UV=%.1f, sensacao=%.1f°C]",
-                id, estacaoId, cidade, dataHora, temperatura, umidade, precipitacao, velocidadeVento, pressaoAtmosferica, direcaoVento, indiceUv, sensacaoTermica);
+        String dataFormatada = (dataHora != null)
+                ? com.app.util.i18n.I18n.formatarDataHora(dataHora)
+                : "não informada";
+        return String.format(com.app.util.i18n.I18n.LOCALE_PADRAO,
+                "MedicaoAmbiental[id=%d, estacao='%s', cidade='%s', hora=%s, temp=%.1f °C, umi=%.1f%%, chuva=%s, vento=%.1f km/h, pressao=%.1f hPa, dir=%s, UV=%.1f, sensacao=%.1f °C]",
+                id, estacaoId, cidade, dataFormatada,
+                temperatura != null ? temperatura : 0.0,
+                umidade != null ? umidade : 0.0,
+                Boolean.TRUE.equals(precipitacao) ? "sim" : "não",
+                velocidadeVento != null ? velocidadeVento : 0.0,
+                pressaoAtmosferica != null ? pressaoAtmosferica : 0.0,
+                direcaoVento != null ? direcaoVento : "N",
+                indiceUv != null ? indiceUv : 0.0,
+                sensacaoTermica != null ? sensacaoTermica : 0.0);
     }
 }

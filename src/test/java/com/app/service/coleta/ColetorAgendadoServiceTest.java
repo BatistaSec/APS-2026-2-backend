@@ -33,11 +33,6 @@ public class ColetorAgendadoServiceTest {
                 m.setUmidade(50.0);
                 return m;
             }
-
-            @Override
-            public String getApiKey() {
-                return "test-key";
-            }
         };
 
         ColetorAgendadoService coletor = new ColetorAgendadoServiceImpl(clientMock, registroMock, List.of("Curitiba,BR"));

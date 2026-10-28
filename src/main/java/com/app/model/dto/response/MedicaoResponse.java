@@ -51,6 +51,9 @@ public record MedicaoResponse(
     }
 
     public String toJson() {
+        long safeId = (id != null) ? id : 0;
+        String cidEncoded = (cidade != null && !cidade.isBlank()) ? cidade.replace(" ", "%20") : "";
+
         return String.format(Locale.US,
                 "{" +
                 "\"id\":%d," +
@@ -64,9 +67,14 @@ public record MedicaoResponse(
                 "\"pressaoAtmosferica\":%.2f," +
                 "\"direcaoVento\":\"%s\"," +
                 "\"indiceUv\":%.2f," +
-                "\"sensacaoTermica\":%.2f" +
+                "\"sensacaoTermica\":%.2f," +
+                "\"_links\":{" +
+                "\"self\":\"/api/v1/medicoes/%d\"," +
+                "\"cidade\":\"/api/v1/cidades/%s/medicoes\"," +
+                "\"estatisticas\":\"/api/v1/cidades/%s/estatisticas\"" +
+                "}" +
                 "}",
-                id != null ? id : 0,
+                safeId,
                 estacaoId != null ? estacaoId : "",
                 cidade != null ? cidade : "",
                 dataHora != null ? dataHora : "",
@@ -77,7 +85,10 @@ public record MedicaoResponse(
                 pressaoAtmosferica != null ? pressaoAtmosferica : 0.0,
                 direcaoVento != null ? direcaoVento : "N",
                 indiceUv != null ? indiceUv : 0.0,
-                sensacaoTermica != null ? sensacaoTermica : 0.0
+                sensacaoTermica != null ? sensacaoTermica : 0.0,
+                safeId,
+                cidEncoded,
+                cidEncoded
         );
     }
 

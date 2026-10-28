@@ -7,7 +7,6 @@ import org.hibernate.boot.registry.StandardServiceRegistry;
 import org.hibernate.boot.registry.StandardServiceRegistryBuilder;
 import org.hibernate.cfg.AvailableSettings;
 
-
 public class HibernateUtil {
     private static StandardServiceRegistry registry;
     private static SessionFactory sessionFactory;
@@ -19,21 +18,23 @@ public class HibernateUtil {
                     try {
                         StandardServiceRegistryBuilder registryBuilder = new StandardServiceRegistryBuilder().configure();
 
-
                         String dbUrl = System.getenv("DB_URL");
-                        if (dbUrl == null) dbUrl = System.getProperty("db.url");
-                        if (dbUrl != null && !dbUrl.isBlank()) {
-                            registryBuilder.applySetting(AvailableSettings.JAKARTA_JDBC_URL, dbUrl);
-                        }
+                        if (dbUrl == null || dbUrl.isBlank()) dbUrl = System.getProperty("db.url");
+                        // Se ainda null, deixa o XML fornecer o valor (hibernate.connection.url)
 
                         String dbUser = System.getenv("DB_USER");
-                        if (dbUser == null) dbUser = System.getProperty("db.user");
-                        if (dbUser != null && !dbUser.isBlank()) {
-                            registryBuilder.applySetting(AvailableSettings.JAKARTA_JDBC_USER, dbUser);
-                        }
+                        if (dbUser == null || dbUser.isBlank()) dbUser = System.getProperty("db.user");
 
                         String dbPassword = System.getenv("DB_PASSWORD");
                         if (dbPassword == null) dbPassword = System.getProperty("db.password");
+
+                        // Só sobrescreve as configurações do XML se as variáveis de ambiente estiverem definidas
+                        if (dbUrl != null && !dbUrl.isBlank()) {
+                            registryBuilder.applySetting(AvailableSettings.JAKARTA_JDBC_URL, dbUrl);
+                        }
+                        if (dbUser != null && !dbUser.isBlank()) {
+                            registryBuilder.applySetting(AvailableSettings.JAKARTA_JDBC_USER, dbUser);
+                        }
                         if (dbPassword != null) {
                             registryBuilder.applySetting(AvailableSettings.JAKARTA_JDBC_PASSWORD, dbPassword);
                         }

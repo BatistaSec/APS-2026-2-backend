@@ -1,6 +1,7 @@
 # Bytecode
 bin/
 out/
+target/
 *.class
 
 # Logs & temporarios
@@ -11,3 +12,11 @@ out/
 .idea/
 *.iml
 .vscode/
+
+# ─── SEGREDOS — NUNCA SUBIR AO GITHUB ───────────────────────────────
+# Arquivo de variáveis de ambiente com credenciais reais
+.env
+# Arquivo de variáveis locais alternativo
+.env.local
+.env.*.local
+# ─────────────────────────────────────────────────────────────────────
