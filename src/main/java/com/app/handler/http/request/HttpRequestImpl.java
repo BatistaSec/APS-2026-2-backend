@@ -5,10 +5,10 @@ import com.sun.net.httpserver.HttpExchange;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.net.InetSocketAddress;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.stream.Collectors;
-
 
 public class HttpRequestImpl implements HttpRequest {
 
@@ -51,10 +51,50 @@ public class HttpRequestImpl implements HttpRequest {
         String val = getQueryParam(nome);
         if (val != null) {
             try {
-                return Integer.parseInt(val);
+                return Integer.parseInt(val.trim());
             } catch (NumberFormatException ignored) {}
         }
         return padrao;
+    }
+
+    @Override
+    public Double getQueryParamDouble(String nome, Double padrao) {
+        String val = getQueryParam(nome);
+        if (val != null) {
+            try {
+                return Double.parseDouble(val.trim());
+            } catch (NumberFormatException ignored) {}
+        }
+        return padrao;
+    }
+
+    @Override
+    public Boolean getQueryParamBoolean(String nome, Boolean padrao) {
+        String val = getQueryParam(nome);
+        if (val != null) {
+            return Boolean.parseBoolean(val.trim());
+        }
+        return padrao;
+    }
+
+    @Override
+    public String getHeader(String nome) {
+        if (nome == null) return null;
+        return exchange.getRequestHeaders().getFirst(nome);
+    }
+
+    @Override
+    public String getClientIp() {
+
+        String xForwardedFor = getHeader("X-Forwarded-For");
+        if (xForwardedFor != null && !xForwardedFor.isBlank()) {
+            return xForwardedFor.split(",")[0].trim();
+        }
+        InetSocketAddress remoteAddress = exchange.getRemoteAddress();
+        if (remoteAddress != null && remoteAddress.getAddress() != null) {
+            return remoteAddress.getAddress().getHostAddress();
+        }
+        return "127.0.0.1";
     }
 
     @Override
@@ -74,10 +114,16 @@ public class HttpRequestImpl implements HttpRequest {
     public Long getIdFromPath() {
         String path = getPath();
         String[] partes = path.split("/");
-        if (partes.length >= 4) {
-            try {
-                return Long.parseLong(partes[3]);
-            } catch (NumberFormatException ignored) {}
+        for (int i = partes.length - 1; i >= 0; i--) {
+            String segmento = partes[i];
+            if (!segmento.isBlank()) {
+                try {
+                    return Long.parseLong(segmento);
+                } catch (NumberFormatException ignored) {
+                    // Não é numérico, continua verificando
+                    break;
+                }
+            }
         }
         return null;
     }

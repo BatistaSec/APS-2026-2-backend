@@ -14,85 +14,116 @@ import java.text.Normalizer;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.Locale;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-
 public class OpenWeatherClientImpl implements OpenWeatherClient {
 
-    public static final String CHAVE_PADRAO = "suachave";
     private static final String BASE_URL = "https://api.openweathermap.org/data/2.5/weather";
     private static final String[] ROSA_DOS_VENTOS = {"N", "NE", "L", "SE", "S", "SO", "O", "NO"};
 
     private final String apiKey;
     private final HttpClient httpClient;
 
+    private final ConcurrentHashMap<String, MedicaoAmbiental> cacheUltimasMedicoes = new ConcurrentHashMap<>();
+
     public OpenWeatherClientImpl() {
         this(obterApiKeyConfigurada(), HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(10))
+                .connectTimeout(Duration.ofSeconds(5))
                 .build());
     }
 
     public OpenWeatherClientImpl(String apiKey) {
         this(apiKey, HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(10))
+                .connectTimeout(Duration.ofSeconds(5))
                 .build());
     }
 
     public OpenWeatherClientImpl(String apiKey, HttpClient httpClient) {
-        this.apiKey = (apiKey != null && !apiKey.isBlank()) ? apiKey : CHAVE_PADRAO;
+        this.apiKey = (apiKey != null && !apiKey.isBlank()) ? apiKey.trim() : null;
         this.httpClient = httpClient;
     }
 
     private static String obterApiKeyConfigurada() {
         String env = System.getenv("OPENWEATHER_API_KEY");
-        if (env != null && !env.isBlank()) return env;
+        if (env != null && !env.isBlank()) return env.trim();
         String prop = System.getProperty("openweather.api.key");
-        if (prop != null && !prop.isBlank()) return prop;
-        return CHAVE_PADRAO;
+        if (prop != null && !prop.isBlank()) return prop.trim();
+        // Fallback para projeto acadêmico: chave padrão (sem variável de ambiente necessária)
+        return "APIKEY_REMOVIDA_DO_HISTORICO";
     }
 
     @Override
     public MedicaoAmbiental buscarClima(String cidade) {
+        if (apiKey == null || apiKey.isBlank()) {
+            throw new IllegalStateException(com.app.util.i18n.I18n.get("openweather.api_key_ausente"));
+        }
         String cidadeAlvo = (cidade != null && !cidade.isBlank()) ? cidade.trim() : "Sao Paulo,BR";
         String encodedCidade = URLEncoder.encode(cidadeAlvo, StandardCharsets.UTF_8);
         String url = String.format("%s?q=%s&appid=%s&units=metric&lang=pt_br", BASE_URL, encodedCidade, apiKey);
 
-        try {
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(url))
-                    .timeout(Duration.ofSeconds(10))
-                    .header("Accept", "application/json")
-                    .GET()
-                    .build();
+        int maxTentativas = 2;
+        Exception ultimaFalha = null;
 
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
-            int status = response.statusCode();
-            String body = response.body();
+        for (int tentativa = 1; tentativa <= maxTentativas; tentativa++) {
+            try {
+                HttpRequest request = HttpRequest.newBuilder()
+                        .uri(URI.create(url))
+                        .timeout(Duration.ofSeconds(6))
+                        .header("Accept", "application/json")
+                        .GET()
+                        .build();
 
-            if (status == 200) {
-                return converterJsonParaMedicao(body);
+                HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+                int status = response.statusCode();
+                String body = response.body();
+
+                if (status == 200) {
+                    MedicaoAmbiental medicao = converterJsonParaMedicao(body);
+                    cacheUltimasMedicoes.put(cidadeAlvo.toLowerCase(Locale.ROOT), medicao);
+                    return medicao;
+                }
+
+                String msgErro = JsonUtil.extrairTexto(body, "message");
+                if (status == 404) {
+                    throw new IllegalArgumentException(com.app.util.i18n.I18n.get("openweather.cidade_nao_encontrada", cidadeAlvo));
+                } else if (status == 401) {
+                    throw new IllegalStateException(com.app.util.i18n.I18n.get("openweather.nao_autorizado"));
+                } else {
+                    throw new RuntimeException(com.app.util.i18n.I18n.get("openweather.erro_servico", status, msgErro));
+                }
+
+            } catch (IllegalArgumentException | IllegalStateException e) {
+                throw e;
+            } catch (IOException e) {
+                ultimaFalha = e;
+                if (tentativa < maxTentativas) {
+                    try {
+                        Thread.sleep(300); // Backoff simples
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new RuntimeException(com.app.util.i18n.I18n.get("openweather.interrompido"), e);
+            } catch (Exception e) {
+                ultimaFalha = e;
+                break;
             }
-
-            String msgErro = JsonUtil.extrairTexto(body, "message");
-            if (status == 404) {
-                throw new IllegalArgumentException("Cidade não encontrada no OpenWeatherMap: '" + cidadeAlvo + "'");
-            } else if (status == 401) {
-                throw new IllegalStateException("Chave de API OpenWeatherMap não autorizada ou inválida.");
-            } else {
-                throw new RuntimeException("Erro ao consultar OpenWeatherMap [" + status + "]: " + msgErro);
-            }
-
-        } catch (IllegalArgumentException | IllegalStateException e) {
-            throw e;
-        } catch (IOException e) {
-            throw new RuntimeException("Falha de rede ao conectar à API OpenWeatherMap: " + e.getMessage(), e);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new RuntimeException("A requisição à OpenWeatherMap foi interrompida.", e);
-        } catch (Exception e) {
-            throw new RuntimeException("Erro ao processar dados da OpenWeatherMap: " + e.getMessage(), e);
         }
+
+        MedicaoAmbiental emCache = cacheUltimasMedicoes.get(cidadeAlvo.toLowerCase(Locale.ROOT));
+        if (emCache != null) {
+            System.err.println("[RESILIÊNCIA] Utilizando medição em cache para '" + cidadeAlvo + "' devido a indisponibilidade externa: " +
+                    (ultimaFalha != null ? ultimaFalha.getMessage() : "Tempo limite esgotado"));
+            return emCache;
+        }
+
+        String erroFinal = (ultimaFalha != null) ? ultimaFalha.getMessage() : "Erro desconhecido";
+        throw new RuntimeException(com.app.util.i18n.I18n.get("openweather.falha_comunicacao", erroFinal), ultimaFalha);
     }
 
     public MedicaoAmbiental converterJsonParaMedicao(String json) {
@@ -167,10 +198,5 @@ public class OpenWeatherClientImpl implements OpenWeatherClient {
 
     private double round(double valor) {
         return Math.round(valor * 100.0) / 100.0;
-    }
-
-    @Override
-    public String getApiKey() {
-        return apiKey;
     }
 }

@@ -7,7 +7,4 @@ public interface OpenWeatherClient {
 
 
     MedicaoAmbiental buscarClima(String cidade);
-
-
-    String getApiKey();
 }

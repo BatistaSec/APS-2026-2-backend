@@ -66,8 +66,13 @@ public class OpenWeatherClientTest {
     }
 
     @Test
-    @DisplayName("OpenWeather: Deve consumir a API real para qualquer cidade informada")
+    @DisplayName("OpenWeather: Deve consumir a API real para qualquer cidade informada quando API key configurada")
     void deveConsumirApiRealParaQualquerCidade() {
+        String envKey = System.getenv("OPENWEATHER_API_KEY");
+        String propKey = System.getProperty("openweather.api.key");
+        org.junit.jupiter.api.Assumptions.assumeTrue((envKey != null && !envKey.isBlank()) || (propKey != null && !propKey.isBlank()),
+                "Teste ignorado: OPENWEATHER_API_KEY não configurada no ambiente.");
+
         assertDoesNotThrow(() -> {
             MedicaoAmbiental medicao = client.buscarClima("Tokyo,JP");
             assertNotNull(medicao);
@@ -75,5 +80,13 @@ public class OpenWeatherClientTest {
             assertNotNull(medicao.getTemperatura());
             assertNotNull(medicao.getUmidade());
         });
+    }
+
+    @Test
+    @DisplayName("OpenWeather: Deve lançar IllegalStateException quando API key não estiver configurada")
+    void deveLancarExcecaoQuandoApiKeyNaoConfigurada() {
+        OpenWeatherClientImpl semKeyClient = new OpenWeatherClientImpl(null);
+        IllegalStateException ex = assertThrows(IllegalStateException.class, () -> semKeyClient.buscarClima("Tokyo,JP"));
+        assertTrue(ex.getMessage().contains("OPENWEATHER_API_KEY"), "Mensagem deve orientar sobre a configuração da chave");
     }
 }
