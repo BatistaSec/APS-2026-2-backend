@@ -4,9 +4,9 @@ API REST em **Java 21 puro** (sem Spring), **Hibernate 6**, **MySQL** e integra�
 
 ---
 
-## 🚀 Como Fazer Funcionar (do zero)
+## 🚀 Como Fazer Funcionar
 
-### O que você precisa instalar
+### Pré-requisitos
 
 | Ferramenta | Versão mínima | Download |
 |---|---|---|
@@ -14,93 +14,66 @@ API REST em **Java 21 puro** (sem Spring), **Hibernate 6**, **MySQL** e integra�
 | Maven | 3.8 | [maven.apache.org](https://maven.apache.org/download.cgi) |
 | MySQL | 8.0 | [dev.mysql.com](https://dev.mysql.com/downloads/mysql/) |
 
-Além disso, você precisa de uma **chave de API gratuita** da OpenWeatherMap:
-1. Crie uma conta em [openweathermap.org](https://home.openweathermap.org/users/sign_up)
-2. Acesse [openweathermap.org/api_keys](https://home.openweathermap.org/api_keys)
-3. Copie a chave gerada (pode demorar até 2h para ativar após o cadastro)
+Chave de API gratuita da OpenWeatherMap:
+1. Crie conta em [openweathermap.org](https://home.openweathermap.org/users/sign_up)
+2. Copie a chave em [openweathermap.org/api_keys](https://home.openweathermap.org/api_keys) (ativa em até 2h)
 
 ---
 
 ### Passo a passo
 
-#### 1. Clone o repositório
+**1. Clone o repositório**
 ```bash
 git clone https://github.com/BatistaSec/APS-2026-2-backend.git
 cd APS-2026-2-backend
 ```
 
-#### 2. Configure as credenciais
+**2. Configure as credenciais**
 
-Abra `src/main/resources/hibernate.cfg.xml` e ajuste usuário e senha do MySQL:
-
+Abra `src/main/resources/hibernate.cfg.xml` e ajuste:
 ```xml
 <property name="hibernate.connection.username">root</property>
 <property name="hibernate.connection.password">sua_senha_do_mysql</property>
 ```
 
-A chave da OpenWeatherMap fica em `src/main/java/com/app/service/openweather/OpenWeatherClientImpl.java`, no método `obterApiKeyConfigurada()`.
+A chave da OpenWeatherMap fica em `OpenWeatherClientImpl.java`, método `obterApiKeyConfigurada()`.
 
-#### 3. Confirme que o MySQL está rodando
-
-```bash
-# Linux / macOS
-sudo service mysql start
-
-# Windows — abra o Gerenciador de Serviços (services.msc) e inicie o MySQL,
-# ou use o MySQL Notifier na bandeja do sistema
-```
-
-#### 4. Inicie o servidor
-
+**3. Inicie o servidor**
 ```bash
 mvn compile exec:java
 ```
 
-Na primeira execução, o Hibernate recria as tabelas do zero (`hbm2ddl.auto=create`). Nas execuções seguintes, troque para `update` no `hibernate.cfg.xml` para preservar os dados.
+Na **primeira execução**, o `hbm2ddl.auto=create` recria as tabelas do zero. Nas execuções seguintes troque para `update` no `hibernate.cfg.xml` para preservar os dados.
 
-Quando aparecer esta mensagem, o servidor está pronto:
-
-```
-[4/4] Servidor HTTP RESTful v1 iniciado com sucesso!
-  Base URL:   http://localhost:8080/
-  Frontend:   http://localhost:8080/frontend/
-  Health:     http://localhost:8080/health
-```
-
-#### 5. Abra no browser
+**4. Acesse no browser**
 
 | URL | O que abre |
 |---|---|
-| `http://localhost:8080` | Frontend principal com busca e mapa |
-| `http://localhost:8080/health` | Status do sistema (banco, JVM) |
-| `http://localhost:8080/api` | Documentação JSON de todos os endpoints |
+| `http://localhost:8080` | Frontend com busca e mapa |
+| `http://localhost:8080/health` | Status do sistema |
+| `http://localhost:8080/api` | Documentação JSON dos endpoints |
 
 ---
 
 ### Problemas comuns
 
-**`Access denied for user 'root'@'localhost'`**
-- A senha em `hibernate.cfg.xml` está incorreta. Teste: `mysql -u root -p`
+**`Access denied for user 'root'`** — senha errada no `hibernate.cfg.xml`. Teste: `mysql -u root -p`
 
-**`Cidade não encontrada`**
-- Use o nome em inglês (ex.: `Sao Paulo`, `Tokyo`, `Paris`)
+**`Cidade não encontrada`** — use o nome em inglês (ex: `Sao Paulo`, `Tokyo`, `Paris`)
 
-**`401` nas chamadas à OpenWeatherMap**
-- A chave demora até 2h para ativar após o cadastro
+**`401` nas chamadas à OpenWeatherMap** — a chave demora até 2h para ativar após o cadastro
 
-**Porta 8080 já em uso**
-- Defina a variável `PORT` antes de rodar: `$env:PORT=9090; mvn compile exec:java`
+**Porta 8080 em uso** — defina a variável `PORT` antes de rodar: `$env:PORT=9090; mvn compile exec:java`
 
 ---
 
-## 🗄️ Modelo de Dados (3 tabelas)
+## 🗄️ Modelo de Dados
 
-O sistema usa um modelo relacional normalizado. Cada medição está vinculada a uma estação, que por sua vez pertence a uma cidade.
+O sistema usa três tabelas relacionadas. Cada medição está vinculada a uma estação, que pertence a uma cidade.
 
 ```
 cidades
-  id (PK) | nome | estado | pais
-  (unique: nome + estado + pais)
+  id (PK) | nome | pais
 
 estacoes
   id (PK, texto) | cidade_id (FK → cidades) | tipo (OWM / MANUAL)
@@ -116,20 +89,18 @@ medicoes_ambientais
 
 Rastreia qual dos 5 gatilhos gerou cada registro:
 
-| Origem | Gatilho |
+| Valor | Quando é usado |
 |---|---|
 | `COLETOR` | Coletor automático a cada 10 s |
-| `PESQUISA` | Frontend buscou via `GET /atual?cidade=X` |
+| `PESQUISA` | Frontend pesquisou via `GET /atual?cidade=X` |
 | `POST` | `POST /medicoes` com localização |
-| `SINCRONIZACAO` | `POST /sincronizacoes` (lote de cidades) |
-| `MANUAL` | `POST /medicoes` sem cidade (dados manuais) |
+| `SINCRONIZACAO` | `POST /sincronizacoes` (lote) |
+| `MANUAL` | `POST /medicoes` sem cidade |
 
 ### Exemplo de JOIN
 
-Para consultar medições com dados completos de cidade:
-
 ```sql
-SELECT m.*, c.nome AS cidade, c.estado
+SELECT m.*, e.id AS estacao, c.nome AS cidade, c.pais
 FROM medicoes_ambientais m
 JOIN estacoes e ON m.estacao_id = e.id
 JOIN cidades c ON e.cidade_id = c.id
@@ -143,48 +114,48 @@ ORDER BY m.data_hora DESC;
 
 ```text
 src/main/java/com/app
-├── Main.java                                    # Inicialização do servidor HTTP e coletor
+├── Main.java
 ├── model
-│   ├── Cidade.java                             # Entidade JPA — tabela cidades
+│   ├── Cidade.java                             # Entidade JPA — tabela cidades (id, nome, pais)
 │   ├── Estacao.java                            # Entidade JPA — tabela estacoes (FK → cidades)
-│   ├── MedicaoAmbiental.java                   # Entidade JPA — tabela medicoes_ambientais (FK → estacoes)
+│   ├── MedicaoAmbiental.java                   # Entidade JPA — tabela medicoes_ambientais
 │   └── dto
 │       ├── request
-│       │   ├── MedicaoRequest.java             # Entrada: cidade, estado, país e campos opcionais
-│       │   └── SincronizacaoRequest.java       # Entrada: lote de cidades/estados
+│       │   ├── MedicaoRequest.java
+│       │   └── SincronizacaoRequest.java
 │       └── response
-│           ├── MedicaoResponse.java            # Saída: dados de uma medição
-│           ├── EstatisticasClimaticas.java     # Saída: estatísticas agregadas
-│           ├── PaginatedResponse.java          # Wrapper genérico de paginação
+│           ├── MedicaoResponse.java
+│           ├── EstatisticasClimaticas.java
+│           ├── PaginatedResponse.java
 │           └── ProblemDetails.java             # Erro padronizado RFC 7807
 ├── dao
-│   ├── EstacaoRepository.java                  # Busca ou cria Cidade + Estacao (upsert)
-│   ├── salvar/    SalvarMedicaoDao(Impl)        # Persiste medições no MySQL
-│   ├── consulta/  ConsultaMedicaoDao(Impl)      # Buscas e listagens com JOIN
-│   └── exclusao/  DeletarMedicaoDao(Impl)       # Remove por ID ou por cidade
+│   ├── EstacaoRepository.java                  # Upsert thread-safe de Cidade + Estacao
+│   ├── salvar/    SalvarMedicaoDao(Impl)
+│   ├── consulta/  ConsultaMedicaoDao(Impl)      # Buscas com JOIN nas 3 tabelas
+│   └── exclusao/  DeletarMedicaoDao(Impl)
 ├── service
 │   ├── calculo/   CalculadoraSensacaoTermica    # Wind Chill e Heat Index
 │   ├── registro/  RegistroMedicaoService(Impl)  # Valida, resolve Estacao/Cidade e salva
-│   ├── estatistica/ EstatisticaService(Impl)    # Agrega MIN, MAX, AVG em uma query
-│   ├── openweather/ OpenWeatherClient(Impl)     # Consulta a API OWM com retry
+│   ├── estatistica/ EstatisticaService(Impl)
+│   ├── openweather/ OpenWeatherClient(Impl)     # Consulta OWM com retry
 │   ├── coleta/    ColetorAgendadoService(Impl)  # Coleta automática a cada 10 s
-│   └── MonitoramentoService.java               # Fachada que conecta todos os serviços
+│   └── MonitoramentoService.java               # Fachada
 ├── handler
-│   ├── MedicaoApiHandler.java                  # Dispatcher: roteia GET / POST / DELETE
-│   ├── health/    HealthHandler                 # GET /health — métricas do sistema
-│   ├── http/request/  HttpRequest(Impl)         # Abstração de leitura de requisição
-│   ├── http/response/ HttpResponseSender(Impl)  # Resposta com CORS, GZIP e UTF-8
-│   ├── operacoes/get/    MedicaoGetHandler(Impl)    # Toda lógica de GET
-│   ├── operacoes/post/   MedicaoPostHandler(Impl)   # Toda lógica de POST
-│   ├── operacoes/delete/ MedicaoDeleteHandler(Impl) # Toda lógica de DELETE
+│   ├── MedicaoApiHandler.java                  # Dispatcher GET / POST / DELETE
+│   ├── health/    HealthHandler
+│   ├── http/request/  HttpRequest(Impl)
+│   ├── http/response/ HttpResponseSender(Impl)  # CORS, GZIP, UTF-8
+│   ├── operacoes/get/    MedicaoGetHandler(Impl)
+│   ├── operacoes/post/   MedicaoPostHandler(Impl)
+│   ├── operacoes/delete/ MedicaoDeleteHandler(Impl)
 │   └── proxy/
-│       ├── FrontendStaticHandler               # Serve HTML/CSS/JS do frontend
-│       └── WeatherProxyHandler                 # Proxy reverso para a API OWM
+│       ├── FrontendStaticHandler
+│       └── WeatherProxyHandler
 └── util
-    ├── HibernateUtil.java                      # Inicializa a SessionFactory
-    ├── JsonUtil.java                           # Parser JSON sem dependências externas
-    ├── database/  DatabaseConnectionManager    # Gerencia transações e métricas
-    └── logging/   AsyncLogger                  # Log assíncrono (não bloqueia threads HTTP)
+    ├── HibernateUtil.java
+    ├── JsonUtil.java
+    ├── database/  DatabaseConnectionManager
+    └── logging/   AsyncLogger
 ```
 
 ---
@@ -192,35 +163,34 @@ src/main/java/com/app
 ## ⚙️ Os 4 Pilares do Sistema
 
 **1. Coleta automática**
-O `ColetorAgendadoService` busca dados reais da OpenWeatherMap a cada 10 segundos para cidades do estado de São Paulo (São Paulo, Campinas, Santos, São José dos Campos, Ribeirão Preto, Sorocaba, Osasco, Santo André, São Bernardo do Campo, Guarulhos). Rotaciona as cidades em sequência e salva com `origem = COLETOR`.
+O `ColetorAgendadoService` coleta a cada 10 segundos, rotacionando entre cidades do estado de São Paulo: São Paulo, Campinas, Santos, São José dos Campos, Ribeirão Preto, Sorocaba, Osasco, Santo André, São Bernardo do Campo, Guarulhos. Registros com `origem = COLETOR`.
 
 **2. Cálculo de sensação térmica**
-Calculado automaticamente pelo `CalculadoraSensacaoTermica`:
 - **Wind Chill** para temperatura ≤ 10 °C
 - **Heat Index** (Steadman) para temperatura ≥ 26 °C com umidade ≥ 40 %
-- Temperatura real preservada em climas amenos
+- Temperatura real preservada nos demais casos
 
 **3. Estatísticas**
-O `EstatisticaService` calcula mínima, máxima e média de temperatura, umidade e sensação térmica, além do pico de vento e contagem de chuvas. Usa uma única query SQL com `COUNT`, `MIN`, `MAX`, `AVG` — sem N+1.
+Uma única query HQL com `COUNT`, `MIN`, `MAX`, `AVG` — sem N+1.
 
 **4. Registro e persistência**
-Toda medição passa pelo `RegistroMedicaoService`, que valida os dados, resolve a `Cidade` e `Estacao` (criando se necessário via `EstacaoRepository`), calcula a sensação térmica e persiste no MySQL via Hibernate 6 com transações ACID.
+O `RegistroMedicaoService` valida os dados, resolve `Cidade` e `Estacao` via `EstacaoRepository` (upsert thread-safe com tratamento de race condition), calcula a sensação térmica e persiste via Hibernate 6 com transações ACID.
 
 ---
 
-## 🌤️ Dados Coletados por Medição
+## 🌤️ Dados por Medição
 
 | Campo | Tipo | Descrição |
 |---|---|---|
 | `cidade` | String (via JOIN) | Nome da cidade |
 | `estacaoId` | String (FK) | ID da estação |
-| `dataHora` | LocalDateTime | Data e hora da medição |
+| `dataHora` | LocalDateTime | Data e hora |
 | `temperatura` | Double (°C) | Temperatura ambiente |
 | `sensacaoTermica` | Double (°C) | Calculada pelo backend |
-| `umidade` | Double (%) | Umidade relativa do ar |
+| `umidade` | Double (%) | Umidade relativa |
 | `precipitacao` | Boolean | Chuva detectada |
 | `velocidadeVento` | Double (km/h) | Velocidade do vento |
-| `direcaoVento` | String | Rosa dos ventos (N, NE, L, SE, S, SO, O, NO) |
+| `direcaoVento` | String | N, NE, L, SE, S, SO, O, NO |
 | `pressaoAtmosferica` | Double (hPa) | Pressão barométrica |
 | `indiceUv` | Double (0–12+) | Índice UV |
 | `origem` | Enum | Gatilho que gerou o registro |
@@ -229,18 +199,38 @@ Toda medição passa pelo `RegistroMedicaoService`, que valida os dados, resolve
 
 ## 📮 Endpoints da API
 
-> Base: `http://localhost:8080` — todos os recursos usam prefixo `/api/v1/`
+> Base: `http://localhost:8080` — prefixo `/api/v1/`
 
-### POST — Inserir Medição
-`POST /api/v1/medicoes`
+| Método | Rota | Descrição |
+|---|---|---|
+| `POST` | `/api/v1/medicoes` | Insere medição (busca OWM se cidade informada) |
+| `POST` | `/api/v1/sincronizacoes` | Insere lote de cidades |
+| `POST` | `/api/v1/coletor/cidades` | Adiciona cidade ao coletor |
+| `POST` | `/api/v1/coletor/execucoes` | Força ciclo imediato de coleta |
+| `GET` | `/api/v1/medicoes` | Histórico paginado com filtros |
+| `GET` | `/api/v1/medicoes/{id}` | Medição por ID |
+| `GET` | `/api/v1/medicoes/atual?cidade=X` | Clima agora (salva e retorna) |
+| `GET` | `/api/v1/medicoes/estatisticas` | Estatísticas agregadas |
+| `GET` | `/api/v1/cidades` | Lista cidades com medições |
+| `GET` | `/api/v1/cidades/{cidade}/medicoes` | Medições de uma cidade |
+| `GET` | `/api/v1/cidades/{cidade}/estatisticas` | Estatísticas de uma cidade |
+| `GET` | `/api/v1/estacoes/{id}/medicoes` | Medições de uma estação |
+| `DELETE` | `/api/v1/medicoes/{id}` | Remove por ID |
+| `DELETE` | `/api/v1/medicoes?cidade=X` | Remove por cidade |
+| `GET` | `/health` | Status do sistema (banco, JVM) |
 
-Busca dados na OWM, calcula sensação térmica, resolve cidade/estação e salva com `origem = POST`.
+### Filtros do histórico paginado
 
-```json
-{ "cidade": "Sao Paulo", "estado": "SP" }
 ```
+GET /api/v1/medicoes?page=1&pageSize=20&cidade=Santos&sort=temperatura&order=DESC
+```
+
+Parâmetros: `cidade`, `tempMin`, `tempMax`, `precipitacao`, `sort` (datahora | temperatura | umidade | cidade), `order` (ASC | DESC), `page`, `pageSize`
+
+### Inserir medição com localização
+
 ```json
-{ "estado": "SP" }
+{ "cidade": "Sao Paulo", "pais": "BR" }
 ```
 ```json
 { "cidade": "Tokyo", "pais": "JP" }
@@ -250,114 +240,14 @@ Campos opcionais para sobrescrever valores da OWM: `temperatura`, `umidade`, `pr
 
 ---
 
-### POST — Sincronizar Lote
-`POST /api/v1/sincronizacoes`
-
-Salva com `origem = SINCRONIZACAO`.
-
-```json
-{ "cidades": ["Campinas", "Santos", "Sorocaba"] }
-```
-
----
-
-### POST — Adicionar Cidade ao Coletor
-`POST /api/v1/coletor/cidades`
-
-```json
-{ "cidade": "Guarulhos" }
-```
-
----
-
-### POST — Forçar Ciclo de Coleta
-`POST /api/v1/coletor/execucoes`
-
----
-
-### GET — Clima em Tempo Real
-`GET /api/v1/medicoes/atual?cidade=Campinas`
-
-Busca agora na OWM, salva com `origem = PESQUISA` e retorna.
-
----
-
-### GET — Histórico Paginado
-`GET /api/v1/medicoes?page=1&pageSize=20`
-
-Filtros opcionais: `cidade`, `tempMin`, `tempMax`, `precipitacao`, `sort` (datahora | temperatura | umidade | cidade), `order` (ASC | DESC)
-
-```
-GET /api/v1/medicoes?cidade=Santos&sort=temperatura&order=DESC&page=1&pageSize=10
-```
-
-Resposta:
-```json
-{
-  "data": [{ "id": 15, "cidade": "Santos", "temperatura": 27.4, "origem": "COLETOR", "dataHora": "2026-11-03T09:23:00" }],
-  "pagination": { "page": 1, "pageSize": 10, "totalItems": 95, "totalPages": 10, "hasNext": true, "hasPrevious": false }
-}
-```
-
----
-
-### GET — Estatísticas
-```
-GET /api/v1/medicoes/estatisticas?limite=50
-GET /api/v1/medicoes/estatisticas?cidade=Campinas&limite=20
-GET /api/v1/cidades/Campinas/estatisticas
-```
-
----
-
-### GET — Cidades cadastradas
-`GET /api/v1/cidades`
-
-Lista apenas cidades que têm medições no banco (via JOIN).
-
----
-
-### GET — Medição por ID
-`GET /api/v1/medicoes/{id}`
-
----
-
-### GET — Medições por cidade
-`GET /api/v1/cidades/{cidade}/medicoes`
-
----
-
-### DELETE — Deletar por ID
-`DELETE /api/v1/medicoes/{id}`
-
----
-
-### DELETE — Deletar por cidade
-`DELETE /api/v1/medicoes?cidade=Santos`
-
----
-
-### GET — Health Check
-`GET /health`
-
-Retorna status do banco, contagem de transações e memória JVM.
-
----
-
 ## ⚙️ Configuração
 
-As credenciais ficam em `src/main/resources/hibernate.cfg.xml`:
+Credenciais em `src/main/resources/hibernate.cfg.xml`.
 
-```xml
-<property name="hibernate.connection.url">jdbc:mysql://localhost:3306/estacao_ambiental_db?...</property>
-<property name="hibernate.connection.username">root</property>
-<property name="hibernate.connection.password">sua_senha</property>
-```
-
-| Propriedade `hbm2ddl.auto` | Quando usar |
+| `hbm2ddl.auto` | Quando usar |
 |---|---|
-| `create` | Primeira execução — recria todas as tabelas do zero |
-| `update` | Execuções seguintes — preserva os dados existentes |
+| `create` | Primeira execução ou reset — recria tabelas do zero |
+| `update` | Uso normal — preserva os dados |
 
 ---
 
@@ -365,32 +255,22 @@ As credenciais ficam em `src/main/resources/hibernate.cfg.xml`:
 
 | Otimização | Detalhe |
 |---|---|
-| **Modelo relacional normalizado** | 3 tabelas com FK — cidades e estações sem duplicação |
+| **3 tabelas relacionadas** | `cidades → estacoes → medicoes_ambientais` com FK |
+| **Upsert thread-safe** | `EstacaoRepository` trata race condition com retry em `ConstraintViolationException` |
 | **Campo `origem`** | Rastreia qual dos 5 gatilhos gerou cada medição |
-| **JOIN FETCH** | Todas as queries carregam cidade via JOIN — sem lazy-loading fora de sessão |
-| **Sem N+1** | Estatísticas em uma única query HQL de projeção (COUNT, MIN, MAX, AVG) |
-| **JDBC Batching** | Lotes de 25 inserts configurados no Hibernate |
-| **GZIP** | Respostas comprimidas automaticamente quando o cliente suporta `Accept-Encoding: gzip` |
+| **JOIN FETCH** | Queries carregam cidade e estação via JOIN — sem lazy-loading fora de sessão |
+| **Sem N+1** | Estatísticas em uma única query HQL (COUNT, MIN, MAX, AVG) |
+| **JDBC Batching** | Lotes de 25 inserts |
+| **GZIP** | Compressão automática quando cliente suporta `Accept-Encoding: gzip` |
 | **Virtual Threads** | `newVirtualThreadPerTaskExecutor()` do Java 21 |
-| **AsyncLogger** | Fila de 4096 eventos consumida por thread daemon |
-
----
-
-## 🌐 Internacionalização (i18n / pt-BR)
-
-Todas as mensagens de erro e validação estão em Português Brasileiro diretamente nas classes.
-Erros seguem o padrão **RFC 7807** com campos `type`, `title`, `status`, `detail` e `instance`.
-
-```bash
-mvn compile exec:java -Duser.language=pt -Duser.country=BR
-```
+| **AsyncLogger** | Fila de 4096 eventos — logs não bloqueiam threads HTTP |
 
 ---
 
 ## 🏛️ Princípios SOLID
 
 - **S** — Cada classe tem uma única responsabilidade (`SalvarMedicaoDao`, `ConsultaMedicaoDao`, `DeletarMedicaoDao`, `MedicaoGetHandler`, etc.)
-- **O** — Extensível por interfaces sem modificar contratos existentes
+- **O** — Extensível via interfaces sem modificar contratos existentes
 - **L** — Implementações substituíveis pelas interfaces sem quebrar o sistema
 - **I** — Interfaces pequenas e específicas por operação
 - **D** — Módulos de alto nível dependem de abstrações, não de implementações concretas
