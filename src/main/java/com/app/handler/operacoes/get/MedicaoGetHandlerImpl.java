@@ -88,8 +88,9 @@ public class MedicaoGetHandlerImpl implements MedicaoGetHandler {
                     MedicaoAmbiental salva = registroService.registrar(viva, MedicaoAmbiental.Origem.PESQUISA);
                     send.sucesso(MedicaoResponse.fromEntity(salva).toJson());
                     return;
-                } catch (Exception ignored) {
-
+                } catch (Exception e) {
+                    com.app.util.logging.AsyncLogger.error("[GET /atual] Falha ao salvar medição: " + e.getMessage(), e);
+                    // fallback: busca último registro do banco
                 }
             }
 

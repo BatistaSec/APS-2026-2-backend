@@ -2,20 +2,16 @@ package com.app.dao;
 
 import com.app.model.Cidade;
 import com.app.model.Estacao;
-import com.app.util.database.DatabaseConnectionManager;
 import com.app.util.HibernateUtil;
+import com.app.util.database.DatabaseConnectionManager;
+import com.app.util.logging.AsyncLogger;
 import org.hibernate.Session;
 
 import java.util.Optional;
 
 /**
  * Repositório para Cidade e Estacao.
- *
- * Responsável por:
- *  - Buscar ou criar uma Cidade (por nome + estado + pais)
- *  - Buscar ou criar uma Estacao (por ID + cidade + tipo)
- *
- * Usado por RegistroMedicaoServiceImpl antes de persistir uma MedicaoAmbiental.
+ * Busca ou cria (upsert) registros antes de persistir uma MedicaoAmbiental.
  */
 public class EstacaoRepository {
 
@@ -35,47 +31,91 @@ public class EstacaoRepository {
     }
 
     /**
-     * Retorna a Cidade existente ou cria uma nova (upsert por nome+estado+pais).
+     * Busca a Cidade pelo nome (e opcionalmente estado/país).
+     * Se não existir, cria uma nova dentro de uma transação.
      */
     public Cidade buscarOuCriarCidade(String nome, String estado, String pais) {
         if (nome == null || nome.isBlank()) return null;
+
         String nomeLimpo   = nome.trim();
-        String estadoLimpo = estado != null ? estado.trim().toUpperCase() : null;
-        String paisLimpo   = pais   != null ? pais.trim().toUpperCase()   : "BR";
+        String estadoLimpo = (estado != null && !estado.isBlank()) ? estado.trim().toUpperCase() : null;
+        String paisLimpo   = (pais   != null && !pais.isBlank())   ? pais.trim().toUpperCase()   : "BR";
 
+        // Tenta buscar existente
         try (Session session = HibernateUtil.getSessionFactory().openSession()) {
-            // busca existente
-            String hql = "FROM Cidade WHERE LOWER(nome) = LOWER(:nome)" +
-                         " AND (estado = :estado OR (:estado IS NULL AND estado IS NULL))" +
-                         " AND pais = :pais";
-            Optional<Cidade> existente = session.createQuery(hql, Cidade.class)
-                    .setParameter("nome",   nomeLimpo)
-                    .setParameter("estado", estadoLimpo)
-                    .setParameter("pais",   paisLimpo)
-                    .uniqueResultOptional();
-            if (existente.isPresent()) return existente.get();
-        } catch (Exception ignored) {}
+            // Monta HQL evitando comparação nula problemática no MySQL
+            String hql;
+            if (estadoLimpo != null) {
+                hql = "FROM Cidade WHERE LOWER(nome) = LOWER(:nome) AND estado = :estado AND pais = :pais";
+            } else {
+                hql = "FROM Cidade WHERE LOWER(nome) = LOWER(:nome) AND estado IS NULL AND pais = :pais";
+            }
 
-        // cria nova
+            var q = session.createQuery(hql, Cidade.class)
+                           .setParameter("nome", nomeLimpo)
+                           .setParameter("pais", paisLimpo);
+            if (estadoLimpo != null) q.setParameter("estado", estadoLimpo);
+
+            Optional<Cidade> existente = q.uniqueResultOptional();
+            if (existente.isPresent()) return existente.get();
+
+        } catch (Exception e) {
+            AsyncLogger.error("[EstacaoRepository] Erro ao buscar cidade '" + nomeLimpo + "': " + e.getMessage(), e);
+        }
+
+        // Cria nova cidade
         Cidade nova = new Cidade(nomeLimpo, estadoLimpo, paisLimpo);
-        dbManager.executeTransactional(s -> s.persist(nova));
-        return nova;
+        try {
+            dbManager.executeTransactional(s -> s.persist(nova));
+            AsyncLogger.info("[EstacaoRepository] Cidade criada: " + nova);
+            return nova;
+        } catch (Exception e) {
+            AsyncLogger.error("[EstacaoRepository] Erro ao criar cidade '" + nomeLimpo + "': " + e.getMessage(), e);
+            // Tenta buscar de novo (pode ter sido criada por outra thread)
+            try (Session session = HibernateUtil.getSessionFactory().openSession()) {
+                String hql = estadoLimpo != null
+                        ? "FROM Cidade WHERE LOWER(nome) = LOWER(:nome) AND estado = :estado AND pais = :pais"
+                        : "FROM Cidade WHERE LOWER(nome) = LOWER(:nome) AND estado IS NULL AND pais = :pais";
+                var q = session.createQuery(hql, Cidade.class)
+                               .setParameter("nome", nomeLimpo)
+                               .setParameter("pais", paisLimpo);
+                if (estadoLimpo != null) q.setParameter("estado", estadoLimpo);
+                return q.uniqueResultOptional().orElse(null);
+            } catch (Exception ex) {
+                return null;
+            }
+        }
     }
 
     /**
-     * Retorna a Estacao existente pelo ID ou cria uma nova.
+     * Busca a Estacao pelo ID ou cria uma nova.
      */
     public Estacao buscarOuCriarEstacao(String estacaoId, Cidade cidade, Estacao.Tipo tipo) {
         if (estacaoId == null || estacaoId.isBlank()) return null;
         String idLimpo = estacaoId.trim();
 
+        // Tenta buscar existente
         try (Session session = HibernateUtil.getSessionFactory().openSession()) {
             Estacao existente = session.find(Estacao.class, idLimpo);
             if (existente != null) return existente;
-        } catch (Exception ignored) {}
+        } catch (Exception e) {
+            AsyncLogger.error("[EstacaoRepository] Erro ao buscar estação '" + idLimpo + "': " + e.getMessage(), e);
+        }
 
+        // Cria nova estação
         Estacao nova = new Estacao(idLimpo, cidade, tipo);
-        dbManager.executeTransactional(s -> s.persist(nova));
-        return nova;
+        try {
+            dbManager.executeTransactional(s -> s.persist(nova));
+            AsyncLogger.info("[EstacaoRepository] Estação criada: " + nova);
+            return nova;
+        } catch (Exception e) {
+            AsyncLogger.error("[EstacaoRepository] Erro ao criar estação '" + idLimpo + "': " + e.getMessage(), e);
+            // Tenta buscar de novo
+            try (Session session = HibernateUtil.getSessionFactory().openSession()) {
+                return session.find(Estacao.class, idLimpo);
+            } catch (Exception ex) {
+                return null;
+            }
+        }
     }
 }
