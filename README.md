@@ -62,6 +62,25 @@ O sistema implementa as duas fórmulas meteorológicas internacionais:
 
 São Paulo, Campinas, Santos, São José dos Campos, Ribeirão Preto, Sorocaba, Osasco, Santo André, São Bernardo do Campo, Guarulhos — todas do estado de São Paulo, coletadas em rotação a cada 10 segundos.
 
+### Mapa interativo (Leaflet.js + OpenStreetMap)
+
+O frontend inclui um mapa interativo completo que funciona **sem API key adicional**. Veja como ele funciona por dentro:
+
+**Como abrir:** clique no botão **"🗺 Ver no mapa"** abaixo da barra de busca. O mapa é iniciado com preguiça (*lazy init*) — só carrega quando o usuário abre pela primeira vez, economizando recursos.
+
+**Tiles via proxy do backend:** os azulejos do mapa (imagens OpenStreetMap) não são carregados diretamente pelo browser — passam pelo proxy Java (`/proxy/tiles/{z}/{x}/{y}.png`). Isso evita bloqueios de CORS e protege a origem das requisições.
+
+**Clique no mapa → clima:** ao clicar em qualquer ponto do mundo, o frontend:
+1. Coloca um marcador temporário com "⏳ Buscando local…"
+2. Chama o endpoint `/proxy/reverse?lat=X&lon=Y` no backend Java, que repassa para a API Nominatim (OpenStreetMap) — o frontend nunca acessa o Nominatim diretamente
+3. Recebe o nome da cidade, estado e país via reverse geocode
+4. Exibe um popup com o nome e um botão **"Ver clima aqui"**
+5. Ao clicar no botão, chama `loadWeather(place)` — o mesmo fluxo da busca por texto — que busca o clima na OWM, salva no banco e renderiza os dados
+
+**Sincronização bidirecional:** quando o usuário pesquisa uma cidade pelo campo de texto, o marcador no mapa se move automaticamente para a cidade encontrada (via `window._onCityChosen`). Mapa e busca por texto estão sempre sincronizados.
+
+**Salvamento automático:** toda seleção de cidade (pelo mapa ou pelo texto) dispara `salvarHistorico()`, que faz `POST /api/v1/medicoes` com os dados climáticos — salvando a medição no banco com `origem = POST`.
+
 ### Pontos de destaque técnico
 
 - **Virtual Threads** (Java 21) — alta concorrência sem overhead de pool de threads
