@@ -82,7 +82,7 @@ public class MedicaoPostHandlerImpl implements MedicaoPostHandler {
             }
 
             coletorService.adicionarCidade(local);
-            String msg = com.app.util.i18n.I18n.get("sucesso.coleta.adicionada", local);
+            String msg = "Localização '" + local + "' adicionada à coleta automática com sucesso.";
             String jsonResposta = String.format("{\"mensagem\":\"%s\",\"cidades\":%s}",
                     msg,
                     "[" + coletorService.getCidades().stream().map(c -> "\"" + c + "\"").collect(Collectors.joining(",")) + "]");
@@ -93,7 +93,7 @@ public class MedicaoPostHandlerImpl implements MedicaoPostHandler {
 
         if (path.contains("/coletor/execucoes") || path.contains("/coletor/executar")) {
             coletorService.executarCicloColeta();
-            send.sucesso("{\"mensagem\":\"" + com.app.util.i18n.I18n.get("sucesso.coleta.executada") + "\"}");
+            send.sucesso("{\"mensagem\":\"Ciclo de coleta meteorológica executado com sucesso.\"}");
             return;
         }
 

@@ -98,7 +98,7 @@ public class MedicaoGetHandlerImpl implements MedicaoGetHandler {
             if (ultima.isPresent()) {
                 send.sucesso(MedicaoResponse.fromEntity(ultima.get()).toJson());
             } else {
-                send.naoEncontrado(com.app.util.i18n.I18n.get("listagem.nenhuma_medicao"));
+                send.naoEncontrado("Nenhuma medição encontrada.");
             }
             return;
         }
@@ -121,7 +121,7 @@ public class MedicaoGetHandlerImpl implements MedicaoGetHandler {
             if (busca.isPresent()) {
                 send.sucesso(MedicaoResponse.fromEntity(busca.get()).toJson());
             } else {
-                send.naoEncontrado(com.app.util.i18n.I18n.get("listagem.medicao_id_nao_encontrada", id));
+                send.naoEncontrado("Medição com ID #" + id + " não encontrada.");
             }
             return;
         }

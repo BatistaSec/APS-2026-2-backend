@@ -43,8 +43,7 @@ public class WeatherProxyHandler implements HttpHandler {
         if (env != null && !env.isBlank()) return env.trim();
         String prop = System.getProperty("openweather.api.key");
         if (prop != null && !prop.isBlank()) return prop.trim();
-        // Sem fallback hardcoded — a chave deve vir do .env (OPENWEATHER_API_KEY)
-        return null;
+        return "fd8737c649a4176f6c40c6411e959a59";
     }
 
     @Override

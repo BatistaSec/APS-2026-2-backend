@@ -8,6 +8,7 @@ import com.app.service.calculo.CalculadoraSensacaoTermicaImpl;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Locale;
 
 public class RegistroMedicaoServiceImpl implements RegistroMedicaoService {
 
@@ -42,7 +43,7 @@ public class RegistroMedicaoServiceImpl implements RegistroMedicaoService {
 
     public void prepararMedicao(MedicaoAmbiental medicao) {
         if (medicao == null) {
-            throw new IllegalArgumentException(com.app.util.i18n.I18n.get("validacao.medicao.nula"));
+            throw new IllegalArgumentException("A medição ambiental não pode ser nula.");
         }
 
         validarLimitesFisicos(medicao.getTemperatura(), medicao.getUmidade());
@@ -75,16 +76,18 @@ public class RegistroMedicaoServiceImpl implements RegistroMedicaoService {
 
     public void validarLimitesFisicos(Double temp, Double umi) {
         if (temp == null) {
-            throw new IllegalArgumentException(com.app.util.i18n.I18n.get("validacao.temperatura.obrigatoria"));
+            throw new IllegalArgumentException("A temperatura é de preenchimento obrigatório.");
         }
         if (temp < -90.0 || temp > 65.0) {
-            throw new IllegalArgumentException(com.app.util.i18n.I18n.get("validacao.temperatura.invalida", com.app.util.i18n.I18n.formatarNumero(temp, 1)));
+            throw new IllegalArgumentException(
+                String.format(Locale.ROOT, "Temperatura inválida (%.1f °C). O valor deve estar entre -90,0 °C e 65,0 °C.", temp));
         }
         if (umi == null) {
-            throw new IllegalArgumentException(com.app.util.i18n.I18n.get("validacao.umidade.obrigatoria"));
+            throw new IllegalArgumentException("A umidade relativa é de preenchimento obrigatório.");
         }
         if (umi < 0.0 || umi > 100.0) {
-            throw new IllegalArgumentException(com.app.util.i18n.I18n.get("validacao.umidade.invalida", com.app.util.i18n.I18n.formatarNumero(umi, 1)));
+            throw new IllegalArgumentException(
+                String.format(Locale.ROOT, "Umidade relativa inválida (%.1f%%). O valor deve estar entre 0,0%% e 100,0%%.", umi));
         }
     }
 }

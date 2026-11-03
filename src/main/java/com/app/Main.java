@@ -10,9 +10,7 @@ import com.app.handler.proxy.FrontendStaticHandler;
 import com.app.handler.proxy.WeatherProxyHandler;
 import com.app.service.MonitoramentoService;
 import com.app.service.coleta.ColetorAgendadoService;
-import com.app.util.EnvLoader;
 import com.app.util.database.DatabaseConnectionManager;
-import com.app.util.i18n.I18n;
 import com.app.util.logging.AsyncLogger;
 import com.sun.net.httpserver.HttpServer;
 import java.nio.file.Path;
@@ -28,10 +26,7 @@ public class Main {
     private static final int PORTA_PADRAO = 8080;
 
     public static void main(String[] args) {
-        // Carrega credenciais do .env (gitignored) antes de qualquer uso do Hibernate/OWM
-        EnvLoader.carregar();
-
-        Locale.setDefault(I18n.LOCALE_PADRAO);
+        Locale.setDefault(new Locale("pt", "BR"));
 
         AsyncLogger.info("==================================================================");
         AsyncLogger.info("     SISTEMA DE ESTAÇÃO DE MONITORAMENTO AMBIENTAL (APS)          ");

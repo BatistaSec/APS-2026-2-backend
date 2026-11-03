@@ -7,10 +7,9 @@
 
         <property name="hibernate.connection.driver_class">com.mysql.cj.jdbc.Driver</property>
 
-        <!-- Credenciais: defina via .env (DB_URL, DB_USER, DB_PASSWORD). Veja .env.example -->
         <property name="hibernate.connection.url">jdbc:mysql://localhost:3306/estacao_ambiental_db?createDatabaseIfNotExist=true&amp;useSSL=false&amp;allowPublicKeyRetrieval=true&amp;serverTimezone=America/Sao_Paulo&amp;characterEncoding=UTF-8</property>
         <property name="hibernate.connection.username">root</property>
-        <property name="hibernate.connection.password">definir-via-env-DB_PASSWORD</property>
+        <property name="hibernate.connection.password">SENHA_REMOVIDA</property>
 
         <property name="hibernate.dialect">org.hibernate.dialect.MySQLDialect</property>
 
@@ -20,7 +19,7 @@
         <property name="hibernate.format_sql">false</property>
 
         <!-- Otimização JDBC: Batching para evitar múltiplas queries em lote -->
-        <property name="hibernate.jdbc.batch_size">25</property>
+        <property name="hibernate.jdbc.batch_size   ">25</property>
         <property name="hibernate.order_inserts">true</property>
         <property name="hibernate.order_updates">true</property>
         <property name="hibernate.jdbc.batch_versioned_data">true</property>

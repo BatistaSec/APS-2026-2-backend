@@ -195,9 +195,9 @@ public class MedicaoAmbiental {
     @Override
     public String toString() {
         String dataFormatada = (dataHora != null)
-                ? com.app.util.i18n.I18n.formatarDataHora(dataHora)
+                ? dataHora.format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss"))
                 : "não informada";
-        return String.format(com.app.util.i18n.I18n.LOCALE_PADRAO,
+        return String.format(java.util.Locale.ROOT,
                 "MedicaoAmbiental[id=%d, estacao='%s', cidade='%s', hora=%s, temp=%.1f °C, umi=%.1f%%, chuva=%s, vento=%.1f km/h, pressao=%.1f hPa, dir=%s, UV=%.1f, sensacao=%.1f °C]",
                 id, estacaoId, cidade, dataFormatada,
                 temperatura != null ? temperatura : 0.0,

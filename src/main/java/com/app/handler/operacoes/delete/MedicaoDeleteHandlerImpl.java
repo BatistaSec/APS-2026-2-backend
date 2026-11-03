@@ -22,23 +22,22 @@ public class MedicaoDeleteHandlerImpl implements MedicaoDeleteHandler {
             int deletados = deletarDao.deletarPorCidade(cidade);
             if (deletados > 0) {
                 String msg = (deletados == 1)
-                        ? com.app.util.i18n.I18n.get("sucesso.medicao.excluida_cidade_singular", cidade)
-                        : com.app.util.i18n.I18n.get("sucesso.medicoes.excluidas_cidade", deletados, cidade);
+                        ? "1 medição do município '" + cidade + "' foi excluída com sucesso."
+                        : deletados + " medições do município '" + cidade + "' foram excluídas com sucesso.";
                 send.sucesso("{\"mensagem\":\"" + msg + "\"}");
             } else {
-                send.naoEncontrado(com.app.util.i18n.I18n.get("listagem.cidade_nao_encontrada", cidade));
+                send.naoEncontrado("Nenhuma medição encontrada para o município: " + cidade);
             }
             return;
         }
-
 
         Long id = req.getIdFromPath();
         if (id != null) {
             boolean removido = deletarDao.deletarPorId(id);
             if (removido) {
-                send.sucesso("{\"mensagem\":\"" + com.app.util.i18n.I18n.get("sucesso.medicao.excluida_id", id) + "\"}");
+                send.sucesso("{\"mensagem\":\"Medição com ID #" + id + " removida com sucesso.\"}");
             } else {
-                send.naoEncontrado(com.app.util.i18n.I18n.get("listagem.medicao_id_nao_encontrada", id));
+                send.naoEncontrado("Medição com ID #" + id + " não encontrada.");
             }
             return;
         }

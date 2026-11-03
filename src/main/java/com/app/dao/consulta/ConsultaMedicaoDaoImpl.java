@@ -3,7 +3,6 @@ package com.app.dao.consulta;
 import com.app.model.MedicaoAmbiental;
 import com.app.model.dto.response.EstatisticasClimaticas;
 import com.app.util.HibernateUtil;
-import com.app.util.cache.CacheManager;
 import com.app.util.logging.AsyncLogger;
 import jakarta.persistence.criteria.CriteriaBuilder;
 import jakarta.persistence.criteria.CriteriaQuery;
@@ -11,7 +10,6 @@ import jakarta.persistence.criteria.Root;
 import org.hibernate.Session;
 import org.hibernate.query.Query;
 
-import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
@@ -216,14 +214,8 @@ public class ConsultaMedicaoDaoImpl implements ConsultaMedicaoDao {
     @Override
     public EstatisticasClimaticas calcularEstatisticasAgregadas(String cidade, int limite) {
         int safeLimite = limite > 0 ? Math.min(limite, 500) : 50;
-        String cacheKey = "stats:" + (cidade != null ? cidade.trim().toLowerCase() : "geral") + ":" + safeLimite;
-        Optional<EstatisticasClimaticas> emCache = CacheManager.getInstance().get(cacheKey);
-        if (emCache.isPresent()) {
-            return emCache.get();
-        }
 
         try (Session session = HibernateUtil.getSessionFactory().openSession()) {
-            // 1. Seleciona deterministicamente os IDs das N medições mais recentes
             StringBuilder idHql = new StringBuilder("SELECT m.id FROM MedicaoAmbiental m ");
             if (cidade != null && !cidade.isBlank()) {
                 idHql.append("WHERE LOWER(m.cidade) LIKE LOWER(:cidade) ");
@@ -238,12 +230,9 @@ public class ConsultaMedicaoDaoImpl implements ConsultaMedicaoDao {
             List<Long> ids = idQuery.getResultList();
 
             if (ids == null || ids.isEmpty()) {
-                EstatisticasClimaticas vazia = new EstatisticasClimaticas(0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0L);
-                CacheManager.getInstance().put(cacheKey, vazia, Duration.ofSeconds(30));
-                return vazia;
+                return new EstatisticasClimaticas(0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0L);
             }
 
-            // 2. Agrega os cálculos diretamente sobre os N registros selecionados
             String aggHql = "SELECT count(m), " +
                     "coalesce(min(m.temperatura), 0.0), coalesce(max(m.temperatura), 0.0), coalesce(avg(m.temperatura), 0.0), " +
                     "coalesce(min(m.umidade), 0.0), coalesce(max(m.umidade), 0.0), coalesce(avg(m.umidade), 0.0), " +
@@ -256,9 +245,7 @@ public class ConsultaMedicaoDaoImpl implements ConsultaMedicaoDao {
 
             Object[] res = query.uniqueResult();
             if (res == null || ((Number) res[0]).longValue() == 0) {
-                EstatisticasClimaticas vazia = new EstatisticasClimaticas(0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0L);
-                CacheManager.getInstance().put(cacheKey, vazia, Duration.ofSeconds(30));
-                return vazia;
+                return new EstatisticasClimaticas(0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0L);
             }
 
             int total = ((Number) res[0]).intValue();
@@ -271,12 +258,10 @@ public class ConsultaMedicaoDaoImpl implements ConsultaMedicaoDao {
             double vMax = round(((Number) res[7]).doubleValue());
             long chuva = res[8] != null ? ((Number) res[8]).longValue() : 0L;
 
-            EstatisticasClimaticas stats = new EstatisticasClimaticas(total, tMin, tMax, tAvg, uMin, uMax, uAvg, vMax, chuva);
-            CacheManager.getInstance().put(cacheKey, stats, Duration.ofSeconds(30));
-            return stats;
+            return new EstatisticasClimaticas(total, tMin, tMax, tAvg, uMin, uMax, uAvg, vMax, chuva);
         } catch (Exception e) {
-            AsyncLogger.error("Erro na agregação única de estatísticas no banco: " + e.getMessage(), e);
-            return null; // Fallback para cálculo em memória se houver falha
+            AsyncLogger.error("Erro na agregação de estatísticas: " + e.getMessage(), e);
+            return null;
         }
     }
 
@@ -306,19 +291,11 @@ public class ConsultaMedicaoDaoImpl implements ConsultaMedicaoDao {
 
     @Override
     public List<String> listarCidades() {
-        Optional<List<String>> emCache = CacheManager.getInstance().get("cidades:lista");
-        if (emCache.isPresent()) {
-            return emCache.get();
-        }
-
         try (Session session = HibernateUtil.getSessionFactory().openSession()) {
-            List<String> cidades = session.createQuery(
+            return session.createQuery(
                     "SELECT DISTINCT m.cidade FROM MedicaoAmbiental m WHERE m.cidade IS NOT NULL AND m.cidade <> '' ORDER BY m.cidade ASC",
                     String.class)
                     .getResultList();
-
-            CacheManager.getInstance().put("cidades:lista", cidades, Duration.ofMinutes(2));
-            return cidades;
         } catch (Exception e) {
             AsyncLogger.error("Erro ao listar cidades: " + e.getMessage(), e);
             return Collections.emptyList();

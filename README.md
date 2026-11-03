@@ -30,32 +30,24 @@ git clone https://github.com/BatistaSec/APS-2026-2-backend.git
 cd APS-2026-2-backend
 ```
 
-#### 2. Configure o arquivo `.env`
+#### 2. Configure as credenciais
 
-Copie o arquivo de exemplo:
+Abra `src/main/resources/hibernate.cfg.xml` e ajuste usuário e senha do MySQL:
 
-```bash
-# Linux / macOS
-cp .env.example .env
-
-# Windows (PowerShell)
-Copy-Item .env.example .env
+```xml
+<property name="hibernate.connection.username">root</property>
+<property name="hibernate.connection.password">sua_senha_do_mysql</property>
 ```
 
-Abra o `.env` num editor de texto e preencha com seus dados:
+Se a porta ou o host forem diferentes do padrão, ajuste também a URL:
 
-```env
-DB_URL=jdbc:mysql://localhost:3306/estacao_ambiental_db?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=America/Sao_Paulo&characterEncoding=UTF-8
-DB_USER=root
-DB_PASSWORD=sua_senha_do_mysql
-OPENWEATHER_API_KEY=sua_chave_da_openweathermap
+```xml
+<property name="hibernate.connection.url">
+  jdbc:mysql://localhost:3306/estacao_ambiental_db?createDatabaseIfNotExist=true&amp;...
+</property>
 ```
 
-> **`DB_URL`** — se o MySQL estiver na porta padrão (3306) com usuário `root`, só troque a senha. O banco `estacao_ambiental_db` é criado automaticamente se não existir.
->
-> **`OPENWEATHER_API_KEY`** — cole a chave que você copiou no passo anterior.
->
-> O arquivo `.env` está no `.gitignore` — nunca vai para o GitHub.
+> O banco `estacao_ambiental_db` é criado automaticamente pelo Hibernate na primeira execução.
 
 #### 3. Confirme que o MySQL está rodando
 
@@ -105,8 +97,8 @@ Quando aparecer esta mensagem, o servidor está pronto:
 
 **`Falha ao conectar ao banco`**
 - Confirme que o MySQL está rodando
-- Verifique se `DB_USER` e `DB_PASSWORD` no `.env` estão corretos
-- Se a porta não for 3306, ajuste `DB_URL` para `localhost:SUA_PORTA`
+- Verifique usuário e senha em `src/main/resources/hibernate.cfg.xml`
+- Se a porta não for 3306, ajuste a URL no mesmo arquivo
 
 **`401 Unauthorized` nas chamadas à OpenWeatherMap**
 - A chave demora até 2h pra ativar após o cadastro — aguarde e tente novamente
@@ -115,7 +107,7 @@ Quando aparecer esta mensagem, o servidor está pronto:
 - Use o nome em inglês ou com acento correto (ex.: `São Paulo`, `Paris`, `Tokyo`)
 
 **Porta 8080 já em uso**
-- Adicione `PORT=OUTRA_PORTA` no `.env` (ex.: `PORT=9090`)
+- Defina a variável de ambiente `PORT` antes de rodar: `$env:PORT=9090; mvn compile exec:java`
 
 ---
 

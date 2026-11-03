@@ -74,10 +74,10 @@ public class HttpResponseSenderImpl implements HttpResponseSender {
         String path = exchange.getRequestURI().getPath();
         String detalhe = (mensagem != null && !mensagem.isBlank())
                 ? mensagem
-                : com.app.util.i18n.I18n.get("erro.bad_request.detalhe_padrao");
+                : "Os parâmetros fornecidos na requisição são inválidos ou estão incompletos.";
         ProblemDetails problem = ProblemDetails.of(
                 "https://api.aps-clima.com/erros/validacao",
-                com.app.util.i18n.I18n.get("erro.bad_request.titulo"),
+                "Requisição Inválida",
                 400,
                 detalhe,
                 path
@@ -90,10 +90,10 @@ public class HttpResponseSenderImpl implements HttpResponseSender {
         String path = exchange.getRequestURI().getPath();
         String detalhe = (mensagem != null && !mensagem.isBlank())
                 ? mensagem
-                : com.app.util.i18n.I18n.get("erro.nao_encontrado.detalhe_padrao");
+                : "O recurso solicitado não foi encontrado no sistema.";
         ProblemDetails problem = ProblemDetails.of(
                 "https://api.aps-clima.com/erros/nao-encontrado",
-                com.app.util.i18n.I18n.get("erro.nao_encontrado.titulo"),
+                "Recurso Não Encontrado",
                 404,
                 detalhe,
                 path
@@ -104,11 +104,12 @@ public class HttpResponseSenderImpl implements HttpResponseSender {
     @Override
     public void metodoNaoPermitido() throws IOException {
         String path = exchange.getRequestURI().getPath();
+        String metodo = exchange.getRequestMethod();
         ProblemDetails problem = ProblemDetails.of(
                 "https://api.aps-clima.com/erros/metodo-nao-permitido",
-                com.app.util.i18n.I18n.get("erro.metodo_nao_permitido.titulo"),
+                "Método HTTP Não Permitido",
                 405,
-                com.app.util.i18n.I18n.get("erro.metodo_nao_permitido.detalhe", exchange.getRequestMethod()),
+                "O método HTTP " + metodo + " não é permitido para este endpoint.",
                 path
         );
         enviar(405, problem.toJson());
@@ -119,10 +120,10 @@ public class HttpResponseSenderImpl implements HttpResponseSender {
         String path = exchange.getRequestURI().getPath();
         String detalhe = (mensagem != null && !mensagem.isBlank())
                 ? mensagem
-                : com.app.util.i18n.I18n.get("erro.interno.detalhe_padrao");
+                : "Ocorreu uma falha inesperada no processamento da solicitação.";
         ProblemDetails problem = ProblemDetails.of(
                 "https://api.aps-clima.com/erros/servidor",
-                com.app.util.i18n.I18n.get("erro.interno.titulo"),
+                "Erro Interno do Servidor",
                 500,
                 detalhe,
                 path
@@ -136,10 +137,10 @@ public class HttpResponseSenderImpl implements HttpResponseSender {
         exchange.getResponseHeaders().set("WWW-Authenticate", "Bearer realm=\"APS-API\"");
         String detalhe = (mensagem != null && !mensagem.isBlank())
                 ? mensagem
-                : com.app.util.i18n.I18n.get("erro.nao_autorizado.detalhe_padrao");
+                : "Credenciais de autenticação ausentes ou inválidas.";
         ProblemDetails problem = ProblemDetails.of(
                 "https://api.aps-clima.com/erros/nao-autorizado",
-                com.app.util.i18n.I18n.get("erro.nao_autorizado.titulo"),
+                "Não Autorizado",
                 401,
                 detalhe,
                 path
@@ -153,10 +154,10 @@ public class HttpResponseSenderImpl implements HttpResponseSender {
         exchange.getResponseHeaders().set("Retry-After", String.valueOf(retryAfterSeconds));
         String detalhe = (mensagem != null && !mensagem.isBlank())
                 ? mensagem
-                : com.app.util.i18n.I18n.get("erro.limite_requisicoes.detalhe", "cliente", retryAfterSeconds);
+                : "Limite de requisições excedido. Aguarde " + retryAfterSeconds + " segundos antes de tentar novamente.";
         ProblemDetails problem = ProblemDetails.of(
                 "https://api.aps-clima.com/erros/limite-requisicoes",
-                com.app.util.i18n.I18n.get("erro.limite_requisicoes.titulo"),
+                "Limite de Requisições Excedido",
                 429,
                 detalhe,
                 path
