@@ -147,12 +147,15 @@ public class OpenWeatherClientImpl implements OpenWeatherClient {
 
         String estacaoId = "OPENWEATHER-" + normalizarParaId(nomeCidade);
 
-        // Cria a medição sem estação JPA — campos transientes transportam os dados de localização
-        // para o RegistroMedicaoServiceImpl resolver Cidade + Estacao antes de persistir.
+        // Extrai país da resposta OWM (campo sys.country ex: "BR")
+        String pais = JsonUtil.extrairTexto(json, "country");
+        if (pais == null || pais.isBlank()) pais = "BR";
+
         MedicaoAmbiental m = new MedicaoAmbiental();
         m.setEstacaoIdTemp(estacaoId);
         m.setCidadeTemp(nomeCidade);
-        m.setPaisTemp("BR"); // default; sobrescrito se a busca vier com país explícito
+        m.setPaisTemp(pais);
+        // estadoTemp fica null aqui — será preenchido pelo handler quando disponível (ex: frontend)
         m.setDataHora(LocalDateTime.now());
         m.setTemperatura(temp != null ? round(temp) : 0.0);
         m.setUmidade(umidade != null ? round(umidade) : 0.0);

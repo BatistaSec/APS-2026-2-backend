@@ -3,7 +3,6 @@ package com.app.service.registro;
 import com.app.dao.EstacaoRepository;
 import com.app.dao.salvar.SalvarMedicaoDao;
 import com.app.dao.salvar.SalvarMedicaoDaoImpl;
-import com.app.model.Cidade;
 import com.app.model.Estacao;
 import com.app.model.MedicaoAmbiental;
 import com.app.model.MedicaoAmbiental.Origem;
@@ -92,22 +91,16 @@ public class RegistroMedicaoServiceImpl implements RegistroMedicaoService {
      * Usa campos herdados do objeto OpenWeather (cidade já preenchida via setter temporário).
      */
     private void resolverEstacao(MedicaoAmbiental medicao) {
-        // O OpenWeatherClientImpl seta o estacaoId temporariamente como String via campo helper
-        // Aqui lemos o estacaoId que foi injetado como campo transiente antes de chamar registrar()
-        String estacaoIdStr   = medicao.getEstacaoIdTemp();
-        String nomeCidade     = medicao.getCidadeTemp();
-        String estadoCidade   = medicao.getEstadoTemp();
-        String paisCidade     = medicao.getPaisTemp();
-        Estacao.Tipo tipo     = (estacaoIdStr != null && estacaoIdStr.startsWith("OPENWEATHER"))
-                                ? Estacao.Tipo.OWM : Estacao.Tipo.MANUAL;
+        String estacaoIdStr = medicao.getEstacaoIdTemp();
+        String nomeCidade   = medicao.getCidadeTemp();
+        String estado       = medicao.getEstadoTemp();
+        String pais         = medicao.getPaisTemp();
+        Estacao.Tipo tipo   = (estacaoIdStr != null && estacaoIdStr.startsWith("OPENWEATHER"))
+                              ? Estacao.Tipo.OWM : Estacao.Tipo.MANUAL;
 
-        Cidade cidade = null;
-        if (nomeCidade != null && !nomeCidade.isBlank()) {
-            cidade = estacaoRepository.buscarOuCriarCidade(nomeCidade, estadoCidade, paisCidade);
-        }
+        String idEstacao = (estacaoIdStr != null && !estacaoIdStr.isBlank()) ? estacaoIdStr : "ESTACAO-MANUAL";
 
-        String idEstacao = estacaoIdStr != null ? estacaoIdStr : "ESTACAO-MANUAL";
-        Estacao estacao  = estacaoRepository.buscarOuCriarEstacao(idEstacao, cidade, tipo);
+        Estacao estacao = estacaoRepository.resolverEstacao(idEstacao, nomeCidade, estado, pais, tipo);
         medicao.setEstacao(estacao);
     }
 
