@@ -21,13 +21,16 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class ColetorAgendadoServiceImpl implements ColetorAgendadoService {
 
     private static final List<String> CIDADES_INICIAIS = List.of(
-            "Curitiba,BR",
             "Sao Paulo,BR",
-            "Rio de Janeiro,BR",
-            "Brasilia,BR",
-            "Tokyo,JP",
-            "London,GB",
-            "Miami,US"
+            "Campinas,BR",
+            "Santos,BR",
+            "Sao Jose dos Campos,BR",
+            "Ribeirao Preto,BR",
+            "Sorocaba,BR",
+            "Osasco,BR",
+            "Santo Andre,BR",
+            "Sao Bernardo do Campo,BR",
+            "Guarulhos,BR"
     );
 
     private final OpenWeatherClient openWeatherClient;
