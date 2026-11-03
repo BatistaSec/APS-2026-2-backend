@@ -127,43 +127,42 @@ public class OpenWeatherClientImpl implements OpenWeatherClient {
 
     public MedicaoAmbiental converterJsonParaMedicao(String json) {
         String nomeCidade = JsonUtil.extrairTexto(json, "name");
-        if (nomeCidade == null || nomeCidade.isBlank()) {
-            nomeCidade = "DESCONHECIDO";
-        }
+        if (nomeCidade == null || nomeCidade.isBlank()) nomeCidade = "DESCONHECIDO";
 
-        Double temp = JsonUtil.extrairNumero(json, "temp");
-        Double feelsLike = JsonUtil.extrairNumero(json, "feels_like");
-        Double umidade = JsonUtil.extrairNumero(json, "humidity");
-        Double pressao = JsonUtil.extrairNumero(json, "pressure");
-        Double ventoVelMps = JsonUtil.extrairNumero(json, "speed");
-        Double ventoDeg = JsonUtil.extrairNumero(json, "deg");
+        Double temp       = JsonUtil.extrairNumero(json, "temp");
+        Double feelsLike  = JsonUtil.extrairNumero(json, "feels_like");
+        Double umidade    = JsonUtil.extrairNumero(json, "humidity");
+        Double pressao    = JsonUtil.extrairNumero(json, "pressure");
+        Double ventoMps   = JsonUtil.extrairNumero(json, "speed");
+        Double ventoDeg   = JsonUtil.extrairNumero(json, "deg");
 
-        double ventoKmH = (ventoVelMps != null) ? Math.round(ventoVelMps * 3.6 * 100.0) / 100.0 : 0.0;
+        double ventoKmH     = (ventoMps != null) ? Math.round(ventoMps * 3.6 * 100.0) / 100.0 : 0.0;
         String direcaoVento = (ventoDeg != null) ? converterGrausParaRosa(ventoDeg) : "N";
 
-        Integer weatherId = extrairWeatherId(json);
-        boolean chuvaDetectada = (weatherId != null && weatherId >= 200 && weatherId < 700) || json.contains("\"rain\":");
+        Integer weatherId   = extrairWeatherId(json);
+        boolean chuva       = (weatherId != null && weatherId >= 200 && weatherId < 700) || json.contains("\"rain\":");
 
-        Double indiceUv = JsonUtil.extrairNumero(json, "uvi");
-        if (indiceUv == null) {
-            indiceUv = estimarIndiceUv(json, temp);
-        }
+        Double uv = JsonUtil.extrairNumero(json, "uvi");
+        if (uv == null) uv = estimarIndiceUv(json, temp);
 
         String estacaoId = "OPENWEATHER-" + normalizarParaId(nomeCidade);
 
-        return new MedicaoAmbiental(
-                estacaoId,
-                nomeCidade,
-                LocalDateTime.now(),
-                temp != null ? round(temp) : 0.0,
-                umidade != null ? round(umidade) : 0.0,
-                chuvaDetectada,
-                ventoKmH,
-                pressao != null ? round(pressao) : 1013.25,
-                direcaoVento,
-                round(indiceUv),
-                feelsLike != null ? round(feelsLike) : temp
-        );
+        // Cria a medição sem estação JPA — campos transientes transportam os dados de localização
+        // para o RegistroMedicaoServiceImpl resolver Cidade + Estacao antes de persistir.
+        MedicaoAmbiental m = new MedicaoAmbiental();
+        m.setEstacaoIdTemp(estacaoId);
+        m.setCidadeTemp(nomeCidade);
+        m.setPaisTemp("BR"); // default; sobrescrito se a busca vier com país explícito
+        m.setDataHora(LocalDateTime.now());
+        m.setTemperatura(temp != null ? round(temp) : 0.0);
+        m.setUmidade(umidade != null ? round(umidade) : 0.0);
+        m.setPrecipitacao(chuva);
+        m.setVelocidadeVento(ventoKmH);
+        m.setPressaoAtmosferica(pressao != null ? round(pressao) : 1013.25);
+        m.setDirecaoVento(direcaoVento);
+        m.setIndiceUv(round(uv));
+        m.setSensacaoTermica(feelsLike != null ? round(feelsLike) : temp);
+        return m;
     }
 
     public static String converterGrausParaRosa(double graus) {

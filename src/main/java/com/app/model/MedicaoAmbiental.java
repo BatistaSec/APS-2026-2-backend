@@ -2,211 +2,174 @@ package com.app.model;
 
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
-import java.util.Locale;
-import java.util.Objects;
 
-
+/**
+ * Medição climática registrada pelo sistema.
+ *
+ * Relacionamentos:
+ *   medicoes_ambientais.estacao_id → estacoes.id → cidades.id
+ *
+ * O campo 'origem' identifica qual dos 5 gatilhos gerou o registro:
+ *   COLETOR        — coletor automático a cada 10 s
+ *   PESQUISA       — GET /atual?cidade=X (frontend)
+ *   POST           — POST /medicoes com localização
+ *   SINCRONIZACAO  — POST /sincronizacoes (lote)
+ *   MANUAL         — POST /medicoes sem cidade (dados manuais)
+ */
 @Entity
 @Table(name = "medicoes_ambientais", indexes = {
-    @Index(name = "idx_data_hora", columnList = "data_hora"),
-    @Index(name = "idx_estacao_id", columnList = "estacao_id"),
-    @Index(name = "idx_cidade", columnList = "cidade")
+    @Index(name = "idx_med_data_hora",  columnList = "data_hora"),
+    @Index(name = "idx_med_estacao",    columnList = "estacao_id"),
+    @Index(name = "idx_med_origem",     columnList = "origem")
 })
 public class MedicaoAmbiental {
+
+    public enum Origem {
+        COLETOR, PESQUISA, POST, SINCRONIZACAO, MANUAL
+    }
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "estacao_id", nullable = false, length = 50)
-    private String estacaoId;
-
-    @Column(name = "cidade", length = 100)
-    private String cidade;
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "estacao_id", nullable = false)
+    private Estacao estacao;
 
     @Column(name = "data_hora", nullable = false)
     private LocalDateTime dataHora;
 
     @Column(name = "temperatura", nullable = false)
-    private Double temperatura; // °C
+    private Double temperatura;        // °C
 
     @Column(name = "umidade", nullable = false)
-    private Double umidade; // %
+    private Double umidade;            // %
 
     @Column(name = "precipitacao", nullable = false)
-    private Boolean precipitacao; // true = chuva detectada, false = sem chuva
+    private Boolean precipitacao;      // true = chuva detectada
 
     @Column(name = "velocidade_vento", nullable = false)
-    private Double velocidadeVento; // km/h
+    private Double velocidadeVento;    // km/h
 
     @Column(name = "pressao_atmosferica")
     private Double pressaoAtmosferica; // hPa
 
     @Column(name = "direcao_vento", length = 10)
-    private String direcaoVento; // ex: N, NE, L, SE, S, SO, O, NO
+    private String direcaoVento;       // N, NE, L, SE, S, SO, O, NO
 
     @Column(name = "indice_uv")
-    private Double indiceUv; // Índice UV (0 a 12+)
+    private Double indiceUv;           // 0 a 12+
 
     @Column(name = "sensacao_termica")
-    private Double sensacaoTermica; // °C
+    private Double sensacaoTermica;    // °C — calculada pelo backend
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "origem", nullable = false, length = 20)
+    private Origem origem;
 
-    public MedicaoAmbiental() {
-    }
+    // ── campos transientes: usados apenas antes de persistir ──────────────
+    // Transportam dados de localização vindos do OpenWeatherClient
+    // para o RegistroMedicaoServiceImpl resolver a Estacao/Cidade.
+    @Transient private String estacaoIdTemp;
+    @Transient private String cidadeTemp;
+    @Transient private String estadoTemp;
+    @Transient private String paisTemp;
 
-    public MedicaoAmbiental(String estacaoId, String cidade, LocalDateTime dataHora, Double temperatura, Double umidade,
-                            Boolean precipitacao, Double velocidadeVento, Double pressaoAtmosferica,
-                            String direcaoVento, Double indiceUv, Double sensacaoTermica) {
-        this.estacaoId = estacaoId != null ? estacaoId : "ESTACAO-01";
-        this.cidade = cidade;
-        this.dataHora = dataHora != null ? dataHora : LocalDateTime.now();
-        this.temperatura = temperatura;
-        this.umidade = umidade;
-        this.precipitacao = precipitacao;
-        this.velocidadeVento = velocidadeVento;
-        this.pressaoAtmosferica = pressaoAtmosferica;
-        this.direcaoVento = direcaoVento;
-        this.indiceUv = indiceUv;
-        this.sensacaoTermica = sensacaoTermica;
-    }
+    public MedicaoAmbiental() {}
 
+    // ── getters / setters ──────────────────────────────────────────────────
 
-    public Long getId() {
-        return id;
-    }
+    public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
 
-    public void setId(Long id) {
-        this.id = id;
-    }
+    public Estacao getEstacao() { return estacao; }
+    public void setEstacao(Estacao estacao) { this.estacao = estacao; }
 
-    public String getEstacaoId() {
-        return estacaoId;
-    }
-
-    public void setEstacaoId(String estacaoId) {
-        this.estacaoId = estacaoId;
-    }
-
+    // Conveniência: retorna o nome da cidade via relacionamento
     public String getCidade() {
-        return cidade;
+        if (estacao != null && estacao.getCidade() != null) {
+            return estacao.getCidade().getNome();
+        }
+        return null;
     }
 
-    public void setCidade(String cidade) {
-        this.cidade = cidade;
+    // Conveniência: retorna o ID da estação via relacionamento
+    public String getEstacaoId() {
+        return estacao != null ? estacao.getId() : null;
     }
 
-    public LocalDateTime getDataHora() {
-        return dataHora;
-    }
+    public LocalDateTime getDataHora() { return dataHora; }
+    public void setDataHora(LocalDateTime dataHora) { this.dataHora = dataHora; }
 
-    public void setDataHora(LocalDateTime dataHora)
-    {
-        this.dataHora = dataHora;
-    }
+    public Double getTemperatura() { return temperatura; }
+    public void setTemperatura(Double temperatura) { this.temperatura = temperatura; }
 
-    public Double getTemperatura() {
-        return temperatura;
-    }
+    public Double getUmidade() { return umidade; }
+    public void setUmidade(Double umidade) { this.umidade = umidade; }
 
-    public void setTemperatura(Double temperatura) {
-        this.temperatura = temperatura;
-    }
+    public Boolean getPrecipitacao() { return precipitacao; }
+    public void setPrecipitacao(Boolean precipitacao) { this.precipitacao = precipitacao; }
 
-    public Double getUmidade() {
-        return umidade;
-    }
+    public Double getVelocidadeVento() { return velocidadeVento; }
+    public void setVelocidadeVento(Double velocidadeVento) { this.velocidadeVento = velocidadeVento; }
 
-    public void setUmidade(Double umidade) {
-        this.umidade = umidade;
-    }
+    public Double getPressaoAtmosferica() { return pressaoAtmosferica; }
+    public void setPressaoAtmosferica(Double pressaoAtmosferica) { this.pressaoAtmosferica = pressaoAtmosferica; }
 
-    public Boolean getPrecipitacao() {
-        return precipitacao;
-    }
+    public String getDirecaoVento() { return direcaoVento; }
+    public void setDirecaoVento(String direcaoVento) { this.direcaoVento = direcaoVento; }
 
-    public void setPrecipitacao(Boolean precipitacao) {
-        this.precipitacao = precipitacao;
-    }
+    public Double getIndiceUv() { return indiceUv; }
+    public void setIndiceUv(Double indiceUv) { this.indiceUv = indiceUv; }
 
-    public Double getVelocidadeVento() {
-        return velocidadeVento;
-    }
+    public Double getSensacaoTermica() { return sensacaoTermica; }
+    public void setSensacaoTermica(Double sensacaoTermica) { this.sensacaoTermica = sensacaoTermica; }
 
-    public void setVelocidadeVento(Double velocidadeVento) {
-        this.velocidadeVento = velocidadeVento;
-    }
+    public Origem getOrigem() { return origem; }
+    public void setOrigem(Origem origem) { this.origem = origem; }
 
-    public Double getPressaoAtmosferica() {
-        return pressaoAtmosferica;
-    }
+    // getters/setters dos campos transientes
+    public String getEstacaoIdTemp() { return estacaoIdTemp; }
+    public void setEstacaoIdTemp(String estacaoIdTemp) { this.estacaoIdTemp = estacaoIdTemp; }
 
-    public void setPressaoAtmosferica(Double pressaoAtmosferica) {
-        this.pressaoAtmosferica = pressaoAtmosferica;
-    }
+    public String getCidadeTemp() { return cidadeTemp; }
+    public void setCidadeTemp(String cidadeTemp) { this.cidadeTemp = cidadeTemp; }
 
-    public String getDirecaoVento() {
-        return direcaoVento;
-    }
+    public String getEstadoTemp() { return estadoTemp; }
+    public void setEstadoTemp(String estadoTemp) { this.estadoTemp = estadoTemp; }
 
-    public void setDirecaoVento(String direcaoVento) {
-        this.direcaoVento = direcaoVento;
-    }
-
-    public Double getIndiceUv() {
-        return indiceUv;
-    }
-
-    public void setIndiceUv(Double indiceUv) {
-        this.indiceUv = indiceUv;
-    }
-
-    public Double getSensacaoTermica() {
-        return sensacaoTermica;
-    }
-
-    public void setSensacaoTermica(Double sensacaoTermica) {
-        this.sensacaoTermica = sensacaoTermica;
-    }
-
+    public String getPaisTemp() { return paisTemp; }
+    public void setPaisTemp(String paisTemp) { this.paisTemp = paisTemp; }
 
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null) return false;
-        Class<?> oEffectiveClass = (o instanceof org.hibernate.proxy.HibernateProxy proxy)
-                ? proxy.getHibernateLazyInitializer().getPersistentClass()
-                : o.getClass();
-        Class<?> thisEffectiveClass = (this instanceof org.hibernate.proxy.HibernateProxy proxy)
-                ? proxy.getHibernateLazyInitializer().getPersistentClass()
-                : this.getClass();
-        if (thisEffectiveClass != oEffectiveClass) return false;
+        Class<?> oClass = (o instanceof org.hibernate.proxy.HibernateProxy hp)
+                ? hp.getHibernateLazyInitializer().getPersistentClass() : o.getClass();
+        Class<?> thisClass = (this instanceof org.hibernate.proxy.HibernateProxy hp)
+                ? hp.getHibernateLazyInitializer().getPersistentClass() : this.getClass();
+        if (thisClass != oClass) return false;
         MedicaoAmbiental that = (MedicaoAmbiental) o;
-        return getId() != null && getId().equals(that.getId());
+        return id != null && id.equals(that.id);
     }
 
     @Override
     public int hashCode() {
-        return (this instanceof org.hibernate.proxy.HibernateProxy proxy)
-                ? proxy.getHibernateLazyInitializer().getPersistentClass().hashCode()
+        return (this instanceof org.hibernate.proxy.HibernateProxy hp)
+                ? hp.getHibernateLazyInitializer().getPersistentClass().hashCode()
                 : getClass().hashCode();
     }
 
     @Override
     public String toString() {
-        String dataFormatada = (dataHora != null)
+        String dataF = dataHora != null
                 ? dataHora.format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss"))
                 : "não informada";
         return String.format(java.util.Locale.ROOT,
-                "MedicaoAmbiental[id=%d, estacao='%s', cidade='%s', hora=%s, temp=%.1f °C, umi=%.1f%%, chuva=%s, vento=%.1f km/h, pressao=%.1f hPa, dir=%s, UV=%.1f, sensacao=%.1f °C]",
-                id, estacaoId, cidade, dataFormatada,
-                temperatura != null ? temperatura : 0.0,
+                "MedicaoAmbiental[id=%d, cidade='%s', origem=%s, hora=%s, temp=%.1f°C, umi=%.1f%%, chuva=%s]",
+                id, getCidade(), origem, dataF, temperatura != null ? temperatura : 0.0,
                 umidade != null ? umidade : 0.0,
-                Boolean.TRUE.equals(precipitacao) ? "sim" : "não",
-                velocidadeVento != null ? velocidadeVento : 0.0,
-                pressaoAtmosferica != null ? pressaoAtmosferica : 0.0,
-                direcaoVento != null ? direcaoVento : "N",
-                indiceUv != null ? indiceUv : 0.0,
-                sensacaoTermica != null ? sensacaoTermica : 0.0);
+                Boolean.TRUE.equals(precipitacao) ? "sim" : "não");
     }
 }

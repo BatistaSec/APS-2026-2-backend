@@ -85,7 +85,7 @@ public class MedicaoGetHandlerImpl implements MedicaoGetHandler {
                 try {
 
                     MedicaoAmbiental viva = openWeatherClient.buscarClima(termoBusca);
-                    MedicaoAmbiental salva = registroService.registrar(viva);
+                    MedicaoAmbiental salva = registroService.registrar(viva, MedicaoAmbiental.Origem.PESQUISA);
                     send.sucesso(MedicaoResponse.fromEntity(salva).toJson());
                     return;
                 } catch (Exception ignored) {

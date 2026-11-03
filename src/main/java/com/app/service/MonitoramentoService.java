@@ -45,7 +45,7 @@ public class MonitoramentoService {
         this.salvarDao = salvarDao;
         this.deletarDao = deletarDao;
         this.openWeatherClient = openWeatherClient;
-        this.registroService = new RegistroMedicaoServiceImpl(salvarDao, calculadora);
+        this.registroService = new RegistroMedicaoServiceImpl(salvarDao, calculadora, com.app.dao.EstacaoRepository.getInstance());
         this.estatisticaService = new EstatisticaServiceImpl(consultaDao);
         this.coletorService = new ColetorAgendadoServiceImpl(openWeatherClient, this.registroService);
     }

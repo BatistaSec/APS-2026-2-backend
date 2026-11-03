@@ -3,6 +3,7 @@ package com.app.handler.operacoes.post;
 import com.app.handler.http.request.HttpRequest;
 import com.app.handler.http.response.HttpResponseSender;
 import com.app.model.MedicaoAmbiental;
+import com.app.model.MedicaoAmbiental.Origem;
 import com.app.model.dto.request.MedicaoRequest;
 import com.app.model.dto.request.SincronizacaoRequest;
 import com.app.model.dto.response.MedicaoResponse;
@@ -26,22 +27,22 @@ public class MedicaoPostHandlerImpl implements MedicaoPostHandler {
                                   RegistroMedicaoService registroService,
                                   ColetorAgendadoService coletorService) {
         this.openWeatherClient = openWeatherClient;
-        this.registroService = registroService;
-        this.coletorService = coletorService;
+        this.registroService   = registroService;
+        this.coletorService    = coletorService;
     }
 
     @Override
     public void tratar(HttpRequest req, HttpResponseSender send) throws IOException {
-
-        String path = req.getPath();
+        String path  = req.getPath();
         String corpo = req.getBody();
 
-
+        // ── POST /sincronizacoes ──────────────────────────────────────────
         if (path.endsWith("/sincronizacoes") || path.endsWith("/sincronizacoes/")
                 || path.endsWith("/sincronizar") || path.endsWith("/sincronizar/")) {
+
             SincronizacaoRequest syncReq = SincronizacaoRequest.fromJson(corpo);
             if (syncReq.estaVazio()) {
-                send.badRequest("Informe a lista de locais no formato: {\"cidades\": [\"Curitiba\", \"Tokyo\"]} ou {\"estados\": [\"PR\", \"SP\"]}");
+                send.badRequest("Informe a lista de locais: {\"cidades\": [\"Curitiba\"]} ou {\"estados\": [\"PR\"]}");
                 return;
             }
 
@@ -51,22 +52,19 @@ public class MedicaoPostHandlerImpl implements MedicaoPostHandler {
                     MedicaoRequest reqItem = new MedicaoRequest(null, local, null, null, null, null, null, null, null, null, null);
                     String busca = reqItem.resolverLocalizacaoConsulta();
                     if (busca == null) busca = local;
-
                     MedicaoAmbiental clima = openWeatherClient.buscarClima(busca);
-                    if (clima != null) {
-                        paraRegistrar.add(clima);
-                    }
+                    if (clima != null) paraRegistrar.add(clima);
                 } catch (Exception e) {
-                    System.err.println("Erro ao obter clima para sincronização do local " + local + ": " + e.getMessage());
+                    System.err.println("Erro na sincronização de '" + local + "': " + e.getMessage());
                 }
             }
 
-            List<MedicaoAmbiental> salvas = registroService.registrarLote(paraRegistrar);
+            List<MedicaoAmbiental> salvas = registroService.registrarLote(paraRegistrar, Origem.SINCRONIZACAO);
             send.criado(MedicaoResponse.fromEntitiesToJson(salvas));
             return;
         }
 
-
+        // ── POST /coletor/cidades ─────────────────────────────────────────
         if (path.contains("/coletor/cidades")) {
             MedicaoRequest cidReq = MedicaoRequest.fromJson(corpo);
             String local = cidReq.resolverLocalizacaoConsulta();
@@ -77,33 +75,30 @@ public class MedicaoPostHandlerImpl implements MedicaoPostHandler {
                         .resolverLocalizacaoConsulta();
             }
             if (local == null || local.isBlank()) {
-                send.badRequest("Informe a localização desejada: {\"cidade\": \"Curitiba\"} ou {\"estado\": \"PR\"}");
+                send.badRequest("Informe a localização: {\"cidade\": \"Curitiba\"} ou {\"estado\": \"PR\"}");
                 return;
             }
-
             coletorService.adicionarCidade(local);
             String msg = "Localização '" + local + "' adicionada à coleta automática com sucesso.";
-            String jsonResposta = String.format("{\"mensagem\":\"%s\",\"cidades\":%s}",
-                    msg,
+            String jsonResp = String.format("{\"mensagem\":\"%s\",\"cidades\":%s}", msg,
                     "[" + coletorService.getCidades().stream().map(c -> "\"" + c + "\"").collect(Collectors.joining(",")) + "]");
-            send.sucesso(jsonResposta);
+            send.sucesso(jsonResp);
             return;
         }
 
-
+        // ── POST /coletor/execucoes ───────────────────────────────────────
         if (path.contains("/coletor/execucoes") || path.contains("/coletor/executar")) {
             coletorService.executarCicloColeta();
             send.sucesso("{\"mensagem\":\"Ciclo de coleta meteorológica executado com sucesso.\"}");
             return;
         }
 
-
+        // ── POST /medicoes com localização (busca OWM) ────────────────────
         MedicaoRequest dto = MedicaoRequest.fromJson(corpo);
 
-
         if (!dto.temLocalizacao()) {
-            String qCid = req.getQueryParam("cidade");
-            String qEst = req.getQueryParam("estado");
+            String qCid  = req.getQueryParam("cidade");
+            String qEst  = req.getQueryParam("estado");
             String qPais = req.getQueryParam("pais");
             if (qCid != null || qEst != null) {
                 dto = new MedicaoRequest(qCid, qEst, qPais, dto.dataHora(), dto.temperatura(), dto.umidade(),
@@ -111,48 +106,44 @@ public class MedicaoPostHandlerImpl implements MedicaoPostHandler {
             }
         }
 
-
         if (dto.temLocalizacao()) {
-            String termoBusca = dto.resolverLocalizacaoConsulta();
-            MedicaoAmbiental medicao = openWeatherClient.buscarClima(termoBusca);
-
-
-            if (dto.dataHora() != null) medicao.setDataHora(dto.dataHora());
-            if (dto.temperatura() != null) medicao.setTemperatura(dto.temperatura());
-            if (dto.umidade() != null) medicao.setUmidade(dto.umidade());
-            if (dto.precipitacao() != null) medicao.setPrecipitacao(dto.precipitacao());
-            if (dto.velocidadeVento() != null) medicao.setVelocidadeVento(dto.velocidadeVento());
+            MedicaoAmbiental medicao = openWeatherClient.buscarClima(dto.resolverLocalizacaoConsulta());
+            // sobrescreve campos opcionais se o cliente enviou valores
+            if (dto.dataHora()           != null) medicao.setDataHora(dto.dataHora());
+            if (dto.temperatura()        != null) medicao.setTemperatura(dto.temperatura());
+            if (dto.umidade()            != null) medicao.setUmidade(dto.umidade());
+            if (dto.precipitacao()       != null) medicao.setPrecipitacao(dto.precipitacao());
+            if (dto.velocidadeVento()    != null) medicao.setVelocidadeVento(dto.velocidadeVento());
             if (dto.pressaoAtmosferica() != null) medicao.setPressaoAtmosferica(dto.pressaoAtmosferica());
-            if (dto.direcaoVento() != null) medicao.setDirecaoVento(dto.direcaoVento());
-            if (dto.indiceUv() != null) medicao.setIndiceUv(dto.indiceUv());
+            if (dto.direcaoVento()       != null) medicao.setDirecaoVento(dto.direcaoVento());
+            if (dto.indiceUv()           != null) medicao.setIndiceUv(dto.indiceUv());
+            // propaga estado/país para melhorar resolução de cidade
+            if (dto.estado() != null) medicao.setEstadoTemp(dto.estado());
+            if (dto.pais()   != null) medicao.setPaisTemp(dto.pais());
 
-
-            MedicaoAmbiental salva = registroService.registrar(medicao);
+            MedicaoAmbiental salva = registroService.registrar(medicao, Origem.POST);
             send.criado(MedicaoResponse.fromEntity(salva).toJson());
             return;
         }
 
-
+        // ── POST /medicoes manual (sem cidade) ────────────────────────────
         if (dto.temperatura() == null || dto.umidade() == null) {
-            send.badRequest("Informe a localização da medição (ex: {\"cidade\": \"Curitiba\"}) ou forneça ao menos temperatura e umidade para registro manual.");
+            send.badRequest("Informe a localização (ex: {\"cidade\": \"São Paulo\"}) ou forneça ao menos temperatura e umidade para registro manual.");
             return;
         }
 
         MedicaoAmbiental manual = new MedicaoAmbiental();
-        // estacaoId é NOT NULL — usa valor padrão quando não informado
-        manual.setEstacaoId("ESTACAO-MANUAL");
+        manual.setEstacaoIdTemp("ESTACAO-MANUAL");
         manual.setDataHora(dto.dataHora() != null ? dto.dataHora() : LocalDateTime.now());
         manual.setTemperatura(dto.temperatura());
         manual.setUmidade(dto.umidade());
-        // precipitacao é NOT NULL — usa false como padrão quando não informado
-        manual.setPrecipitacao(dto.precipitacao() != null ? dto.precipitacao() : Boolean.FALSE);
-        // velocidadeVento é NOT NULL — usa 0.0 como padrão quando não informado
+        manual.setPrecipitacao(dto.precipitacao() != null ? dto.precipitacao() : false);
         manual.setVelocidadeVento(dto.velocidadeVento() != null ? dto.velocidadeVento() : 0.0);
         manual.setPressaoAtmosferica(dto.pressaoAtmosferica());
         manual.setDirecaoVento(dto.direcaoVento());
         manual.setIndiceUv(dto.indiceUv());
 
-        MedicaoAmbiental salva = registroService.registrar(manual);
+        MedicaoAmbiental salva = registroService.registrar(manual, Origem.MANUAL);
         send.criado(MedicaoResponse.fromEntity(salva).toJson());
     }
 }

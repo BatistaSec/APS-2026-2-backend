@@ -13,17 +13,21 @@
 
         <property name="hibernate.dialect">org.hibernate.dialect.MySQLDialect</property>
 
-        <property name="hibernate.hbm2ddl.auto">update</property>
+        <!-- Na PRIMEIRA execução use 'create' para gerar as tabelas do zero.
+             Depois troque para 'update' para preservar os dados. -->
+        <property name="hibernate.hbm2ddl.auto">create</property>
 
         <property name="hibernate.show_sql">false</property>
         <property name="hibernate.format_sql">false</property>
 
-        <!-- Otimização JDBC: Batching para evitar múltiplas queries em lote -->
-        <property name="hibernate.jdbc.batch_size   ">25</property>
+        <!-- Otimização JDBC: Batching -->
+        <property name="hibernate.jdbc.batch_size">25</property>
         <property name="hibernate.order_inserts">true</property>
         <property name="hibernate.order_updates">true</property>
         <property name="hibernate.jdbc.batch_versioned_data">true</property>
 
+        <mapping class="com.app.model.Cidade"/>
+        <mapping class="com.app.model.Estacao"/>
         <mapping class="com.app.model.MedicaoAmbiental"/>
     </session-factory>
 </hibernate-configuration>
