@@ -1,18 +1,99 @@
 # Trechos de Código — Estação de Monitoramento Ambiental (APS)
 
-> Documento de apoio para a elaboração do trabalho acadêmico.
-> Os trechos abaixo representam as partes mais relevantes do sistema,
-> organizados por camada da arquitetura.
-> Formato de referência: **ABNT NBR 6023** e **NBR 10520** (citação de código-fonte).
+> Documento de apoio para a elaboração do trabalho acadêmico conforme
+> **ABNT NBR 6023** (referências) e **NBR 10520** (citações).
+> Cada trecho indica a fonte (caminho do arquivo) para referência bibliográfica.
 
 ---
 
-## 1. Camada de Modelo — Entidades JPA
+## FOTOS DO SISTEMA EM EXECUÇÃO
 
-### Código 1 — Entidade `Cidade.java`
+> **Instruções para captura** — tire as screenshots com o sistema rodando
+> (`mvn compile exec:java`) e cole neste documento ou no Word.
+> Use `Win + Shift + S` para selecionar a área exata no Windows.
 
-Representa uma cidade monitorada. Utiliza a anotação `@UniqueConstraint` para garantir
-integridade referencial, impedindo cadastro duplicado de cidades com mesmo nome e país.
+### Foto 1 — Frontend principal (tela de busca)
+**O que capturar:** Abra `http://localhost:8080` no browser.
+Mostre a tela com a barra de busca, resultado do clima de uma cidade (temperatura,
+umidade, vento) e o ícone do mapa.
+> 📸 *Inserir screenshot aqui*
+
+---
+
+### Foto 2 — Mapa interativo
+**O que capturar:** Clique no botão "🗺 Ver no mapa".
+Mostre o mapa com um marcador sobre uma cidade e o popup com nome e dados.
+> 📸 *Inserir screenshot aqui*
+
+---
+
+### Foto 3 — Terminal com o coletor funcionando
+**O que capturar:** O terminal onde o servidor está rodando,
+mostrando as linhas `[COLETA 10s] [São Paulo] ID: #X | XX.X°C ...`
+> 📸 *Inserir screenshot aqui*
+
+---
+
+### Foto 4 — Banco de dados: tabela `cidades`
+**O que capturar:** No MySQL Workbench, execute:
+```sql
+SELECT * FROM cidades;
+```
+Mostre as cidades salvas automaticamente pelo coletor.
+> 📸 *Inserir screenshot aqui*
+
+---
+
+### Foto 5 — Banco de dados: tabela `estacoes`
+**O que capturar:** No MySQL Workbench, execute:
+```sql
+SELECT * FROM estacoes;
+```
+Mostre as estações com o `cidade_id` e o `tipo` (OWM / MANUAL).
+> 📸 *Inserir screenshot aqui*
+
+---
+
+### Foto 6 — Banco de dados: tabela `medicoes_ambientais`
+**O que capturar:** No MySQL Workbench, execute:
+```sql
+SELECT m.id, c.nome AS cidade, m.temperatura, m.umidade,
+       m.precipitacao, m.origem, m.data_hora
+FROM medicoes_ambientais m
+JOIN estacoes e ON m.estacao_id = e.id
+JOIN cidades c  ON e.cidade_id  = c.id
+ORDER BY m.data_hora DESC
+LIMIT 20;
+```
+Mostre a listagem com cidades, temperaturas e a coluna `origem`.
+> 📸 *Inserir screenshot aqui*
+
+---
+
+### Foto 7 — Endpoint `/health` no browser
+**O que capturar:** Abra `http://localhost:8080/health`.
+Mostre o JSON com `status: UP`, métricas de banco e JVM.
+> 📸 *Inserir screenshot aqui*
+
+---
+
+### Foto 8 — Endpoint `/api/v1/medicoes` no browser ou Postman
+**O que capturar:** Abra `http://localhost:8080/api/v1/medicoes?page=1&pageSize=5`.
+Mostre o JSON paginado com medições e o bloco `pagination`.
+> 📸 *Inserir screenshot aqui*
+
+---
+
+## TRECHOS DE CÓDIGO
+
+---
+
+## 1. Modelo de Dados — Entidades JPA
+
+### Código 1 — `Cidade.java` — Entidade com restrição de unicidade
+
+Representa uma cidade monitorada. A anotação `@UniqueConstraint` garante
+integridade referencial, impedindo duplicatas de nome e país no banco de dados.
 
 ```java
 @Entity
@@ -36,7 +117,6 @@ public class Cidade {
         this.nome = nome;
         this.pais = pais;
     }
-    // getters e setters omitidos
 }
 ```
 
@@ -44,11 +124,48 @@ public class Cidade {
 
 ---
 
-### Código 2 — Entidade `MedicaoAmbiental.java`
+### Código 2 — `Estacao.java` — Relacionamento ManyToOne com Cidade
 
-Entidade principal do sistema. Demonstra o relacionamento `@ManyToOne` com `Estacao`,
-o uso de `@Enumerated` para o campo `origem` e campos `@Transient` para transporte
-temporário de dados entre camadas sem persistência.
+A entidade `Estacao` representa a fonte de coleta de dados. Utiliza `FetchType.EAGER`
+para garantir que a cidade seja carregada imediatamente, evitando
+`LazyInitializationException` fora do contexto de sessão Hibernate.
+
+```java
+@Entity
+@Table(name = "estacoes")
+public class Estacao {
+
+    public enum Tipo { OWM, MANUAL }
+
+    @Id
+    @Column(name = "id", length = 60)
+    private String id; // ex: "OPENWEATHER-SAO-PAULO"
+
+    @ManyToOne(fetch = FetchType.EAGER, optional = true)
+    @JoinColumn(name = "cidade_id", nullable = true)
+    private Cidade cidade;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "tipo", nullable = false, length = 10)
+    private Tipo tipo;
+
+    public Estacao(String id, Cidade cidade, Tipo tipo) {
+        this.id     = id;
+        this.cidade = cidade;
+        this.tipo   = tipo;
+    }
+}
+```
+
+> **Fonte:** `src/main/java/com/app/model/Estacao.java`
+
+---
+
+### Código 3 — `MedicaoAmbiental.java` — Entidade principal com campos transientes
+
+Entidade central do sistema. Demonstra: relacionamento `@ManyToOne` para `Estacao`,
+`@Enumerated` para o campo `origem`, índices com `@Index`, e campos `@Transient`
+para transporte temporário de dados entre camadas sem persistência no banco.
 
 ```java
 @Entity
@@ -87,7 +204,7 @@ public class MedicaoAmbiental {
     private Double velocidadeVento;    // km/h
 
     @Column(name = "sensacao_termica")
-    private Double sensacaoTermica;    // calculada pelo backend
+    private Double sensacaoTermica;    // °C — calculada pelo backend
 
     @Enumerated(EnumType.STRING)
     @Column(name = "origem", nullable = false, length = 20)
@@ -97,6 +214,13 @@ public class MedicaoAmbiental {
     @Transient private String estacaoIdTemp;
     @Transient private String cidadeTemp;
     @Transient private String paisTemp;
+
+    // Conveniência: acessa nome da cidade via relacionamento
+    public String getCidade() {
+        if (estacao != null && estacao.getCidade() != null)
+            return estacao.getCidade().getNome();
+        return null;
+    }
 }
 ```
 
@@ -104,29 +228,30 @@ public class MedicaoAmbiental {
 
 ---
 
-## 2. Camada de Repositório — Upsert Thread-Safe
+## 2. Repositório — Upsert Thread-Safe
 
-### Código 3 — `EstacaoRepository.java` — Upsert com tratamento de race condition
+### Código 4 — `EstacaoRepository.java` — Upsert com tratamento de race condition
 
-Demonstra o padrão *upsert* (insert or select) implementado manualmente em Java,
-dentro de uma única transação Hibernate. O bloco `catch` trata a condição de corrida
-(*race condition*) entre threads paralelas usando `ConstraintViolationException`.
+Demonstra o padrão *upsert* implementado sem frameworks: tenta criar `Cidade` e
+`Estacao` em uma única transação. Se duas threads tentarem criar o mesmo registro
+simultaneamente (*race condition*), a que perder na restrição `UNIQUE KEY` captura
+a `ConstraintViolationException` e busca o registro já criado pela outra thread.
 
 ```java
 public Estacao resolverEstacao(String estacaoId, String nomeCidade,
                                String pais, Estacao.Tipo tipo) {
     String idLimpo   = estacaoId.trim();
     String nomeLimpo = (nomeCidade != null) ? nomeCidade.trim() : null;
-    String paisLimpo = (pais != null)       ? pais.trim().toUpperCase() : "BR";
+    String paisLimpo = (pais != null)       ? pais.toUpperCase() : "BR";
 
     try {
         return dbManager.executeTransactionalResult(session -> {
 
-            // 1. Busca estação existente
+            // 1. Verifica se a estação já existe
             Estacao estacao = session.find(Estacao.class, idLimpo);
             if (estacao != null) return estacao;
 
-            // 2. Busca ou cria cidade na mesma sessão
+            // 2. Busca ou cria cidade na mesma transação
             Cidade cidade = resolverCidadeNaSessao(session, nomeLimpo, paisLimpo);
 
             // 3. Cria e persiste nova estação
@@ -137,7 +262,7 @@ public Estacao resolverEstacao(String estacaoId, String nomeCidade,
         });
 
     } catch (RuntimeException e) {
-        // Race condition: outra thread criou primeiro — busca o registro existente
+        // Race condition: outra thread criou primeiro
         if (isCausaConstraintViolation(e)) {
             return buscarEstacaoExistente(idLimpo);
         }
@@ -145,9 +270,11 @@ public Estacao resolverEstacao(String estacaoId, String nomeCidade,
     }
 }
 
-private Cidade resolverCidadeNaSessao(Session session, String nome, String pais) {
+private Cidade resolverCidadeNaSessao(Session session,
+                                      String nome, String pais) {
     if (nome == null) return null;
 
+    // Busca cidade existente
     Cidade existente = session.createQuery(
             "FROM Cidade WHERE LOWER(nome) = LOWER(:nome) AND pais = :pais",
             Cidade.class)
@@ -159,9 +286,10 @@ private Cidade resolverCidadeNaSessao(Session session, String nome, String pais)
 
     if (existente != null) return existente;
 
+    // Cria nova cidade
     Cidade nova = new Cidade(nome, pais);
     session.persist(nova);
-    session.flush();
+    session.flush(); // garante ID antes de criar Estacao
     return nova;
 }
 ```
@@ -172,33 +300,30 @@ private Cidade resolverCidadeNaSessao(Session session, String nome, String pais)
 
 ## 3. Camada de Serviço — Lógica de Negócio
 
-### Código 4 — `RegistroMedicaoServiceImpl.java` — Preparação e validação da medição
+### Código 5 — `RegistroMedicaoServiceImpl.java` — Preparação e validação
 
-Demonstra o princípio **SRP** (Single Responsibility Principle): a classe é responsável
-apenas por validar dados, resolver a estação e calcular a sensação térmica antes
-de delegar a persistência ao DAO.
+Aplica o **SRP**: valida limites físicos, define origem, resolve estação/cidade
+e calcula sensação térmica antes de delegar persistência ao DAO.
 
 ```java
 public void prepararMedicao(MedicaoAmbiental medicao, Origem origem) {
 
-    // Validação dos limites físicos
+    // Validação dos dados
     validarLimitesFisicos(medicao.getTemperatura(), medicao.getUmidade());
 
-    // Define a origem do registro
+    // Define a origem do registro (coletor, pesquisa, post, etc.)
     medicao.setOrigem(origem != null ? origem : Origem.MANUAL);
 
-    // Resolve estação/cidade se ainda não vinculada
-    if (medicao.getEstacao() == null) {
-        resolverEstacao(medicao);
-    }
+    // Resolve estação e cidade se ainda não vinculadas
+    if (medicao.getEstacao() == null) resolverEstacao(medicao);
 
-    // Valores padrão para campos obrigatórios
-    if (medicao.getDataHora()       == null) medicao.setDataHora(LocalDateTime.now());
-    if (medicao.getPrecipitacao()   == null) medicao.setPrecipitacao(false);
-    if (medicao.getVelocidadeVento()== null) medicao.setVelocidadeVento(0.0);
+    // Define valores padrão para campos obrigatórios
+    if (medicao.getDataHora()        == null) medicao.setDataHora(LocalDateTime.now());
+    if (medicao.getPrecipitacao()    == null) medicao.setPrecipitacao(false);
+    if (medicao.getVelocidadeVento() == null) medicao.setVelocidadeVento(0.0);
 
-    // Calcula sensação térmica se ausente
-    if (medicao.getSensacaoTermica() == null && medicao.getTemperatura() != null) {
+    // Calcula sensação térmica automaticamente
+    if (medicao.getSensacaoTermica() == null) {
         double calc = calculadoraSensacaoTermica.calcular(
             medicao.getTemperatura(),
             medicao.getUmidade()        != null ? medicao.getUmidade()        : 50.0,
@@ -207,22 +332,35 @@ public void prepararMedicao(MedicaoAmbiental medicao, Origem origem) {
         medicao.setSensacaoTermica(Math.round(calc * 100.0) / 100.0);
     }
 }
+
+public void validarLimitesFisicos(Double temp, Double umi) {
+    if (temp == null)
+        throw new IllegalArgumentException("A temperatura é obrigatória.");
+    if (temp < -90.0 || temp > 65.0)
+        throw new IllegalArgumentException(
+            String.format("Temperatura inválida (%.1f °C).", temp));
+    if (umi == null)
+        throw new IllegalArgumentException("A umidade é obrigatória.");
+    if (umi < 0.0 || umi > 100.0)
+        throw new IllegalArgumentException(
+            String.format("Umidade inválida (%.1f%%).", umi));
+}
 ```
 
 > **Fonte:** `src/main/java/com/app/service/registro/RegistroMedicaoServiceImpl.java`
 
 ---
 
-### Código 5 — `CalculadoraSensacaoTermicaImpl.java` — Fórmulas meteorológicas
+### Código 6 — `CalculadoraSensacaoTermicaImpl.java` — Fórmulas Wind Chill e Heat Index
 
-Implementa as duas fórmulas internacionais para cálculo de sensação térmica:
-**Wind Chill** (resfriamento pelo vento) e **Heat Index** (Steadman, 1979).
+Implementa as duas fórmulas meteorológicas internacionais:
+**Wind Chill** (Environment Canada) e **Heat Index** (Steadman, 1979).
 
 ```java
 @Override
 public double calcular(double tempC, double umidade, double ventoKmH) {
 
-    // Wind Chill — clima frio (≤ 10 °C) com vento ativo (> 4,8 km/h)
+    // Wind Chill — resfriamento pelo vento (temperatura ≤ 10 °C, vento > 4,8 km/h)
     if (tempC <= 10.0 && ventoKmH > 4.8) {
         double v016 = Math.pow(ventoKmH, 0.16);
         return 13.12
@@ -231,9 +369,9 @@ public double calcular(double tempC, double umidade, double ventoKmH) {
              + (0.3965  * tempC * v016);
     }
 
-    // Heat Index (Steadman) — clima quente (≥ 26 °C) e úmido (umidade ≥ 40 %)
+    // Heat Index (Steadman) — calor + umidade (temp ≥ 26 °C, umidade ≥ 40 %)
     if (tempC >= 26.0 && umidade >= 40.0) {
-        double tF = (tempC * 9.0 / 5.0) + 32.0; // converte para Fahrenheit
+        double tF = (tempC * 9.0 / 5.0) + 32.0; // converte para °F
         double r  = umidade;
 
         double hiF = -42.379
@@ -246,11 +384,10 @@ public double calcular(double tempC, double umidade, double ventoKmH) {
             + (8.5282e-4    * tF * r  * r)
             - (1.99e-6      * tF * tF * r * r);
 
-        return (hiF - 32.0) * 5.0 / 9.0; // converte de volta para Celsius
+        return (hiF - 32.0) * 5.0 / 9.0; // converte de volta para °C
     }
 
-    // Clima ameno — retorna temperatura real sem ajuste
-    return tempC;
+    return tempC; // clima ameno — temperatura real preservada
 }
 ```
 
@@ -258,32 +395,33 @@ public double calcular(double tempC, double umidade, double ventoKmH) {
 
 ---
 
-### Código 6 — `ColetorAgendadoServiceImpl.java` — Coleta automática agendada
+### Código 7 — `ColetorAgendadoServiceImpl.java` — Coleta periódica com thread-safe
 
-Demonstra o uso de `ScheduledExecutorService` para execução periódica a cada 10 segundos,
-com `AtomicInteger` garantindo a rotação thread-safe entre cidades do pool,
-e `CopyOnWriteArrayList` permitindo adição dinâmica de cidades sem locks manuais.
+Demonstra o uso de `ScheduledExecutorService` para execução periódica,
+`AtomicInteger` para rotação thread-safe entre cidades, e `CopyOnWriteArrayList`
+permitindo adição dinâmica sem locks manuais.
 
 ```java
 public ColetorAgendadoServiceImpl(...) {
-    this.cidades   = new CopyOnWriteArrayList<>(cidadesIniciais);
+    this.cidades = new CopyOnWriteArrayList<>(cidadesIniciais);
     this.scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
         Thread t = new Thread(r, "Coletor-OpenWeather-10s");
-        t.setDaemon(true);
+        t.setDaemon(true); // não impede o encerramento da JVM
         return t;
     });
 }
 
 @Override
 public void iniciar() {
-    scheduler.scheduleAtFixedRate(this::executarCicloColeta, 0, 10, TimeUnit.SECONDS);
+    scheduler.scheduleAtFixedRate(
+        this::executarCicloColeta, 0, 10, TimeUnit.SECONDS);
 }
 
 @Override
 public void executarCicloColeta() {
     if (cidades.isEmpty()) return;
 
-    // Rotação round-robin thread-safe usando AtomicInteger
+    // Rotação round-robin thread-safe
     int idx = Math.floorMod(indiceCidade.getAndIncrement(), cidades.size());
     String cidadeAlvo = cidades.get(idx);
 
@@ -291,7 +429,8 @@ public void executarCicloColeta() {
         MedicaoAmbiental leitura = openWeatherClient.buscarClima(cidadeAlvo);
         registroMedicaoService.registrar(leitura, MedicaoAmbiental.Origem.COLETOR);
     } catch (Exception e) {
-        AsyncLogger.error("Falha na coleta para '" + cidadeAlvo + "': " + e.getMessage(), e);
+        AsyncLogger.error("Falha na coleta para '"
+            + cidadeAlvo + "': " + e.getMessage(), e);
     }
 }
 ```
@@ -300,14 +439,13 @@ public void executarCicloColeta() {
 
 ---
 
-## 4. Camada de Handler — Dispatcher HTTP
+## 4. Camada de Handler — API REST
 
-### Código 7 — `MedicaoApiHandler.java` — Padrão Dispatcher / Command
+### Código 8 — `MedicaoApiHandler.java` — Dispatcher por método HTTP
 
-Demonstra o princípio **DIP** (Dependency Inversion Principle) e o padrão *Dispatcher*:
-o handler depende de interfaces (`MedicaoGetHandler`, `MedicaoPostHandler`,
-`MedicaoDeleteHandler`), não de implementações concretas. O roteamento por método HTTP
-é feito com `switch` expression (Java 14+).
+Aplica o **DIP**: o dispatcher depende de interfaces (`MedicaoGetHandler`,
+`MedicaoPostHandler`, `MedicaoDeleteHandler`), não de implementações concretas.
+O roteamento usa `switch` expression do Java 14+.
 
 ```java
 public class MedicaoApiHandler implements HttpHandler {
@@ -319,11 +457,12 @@ public class MedicaoApiHandler implements HttpHandler {
     @Override
     public void handle(HttpExchange exchange) throws IOException {
         String method = exchange.getRequestMethod().toUpperCase();
-        HttpRequest req  = new HttpRequestImpl(exchange);
+        HttpRequest        req  = new HttpRequestImpl(exchange);
         HttpResponseSender send = new HttpResponseSenderImpl(exchange);
 
+        // Trata preflight CORS sem processar
         if ("OPTIONS".equalsIgnoreCase(method)) {
-            send.noContent();   // responde preflight CORS sem processar
+            send.noContent();
             return;
         }
 
@@ -347,12 +486,239 @@ public class MedicaoApiHandler implements HttpHandler {
 
 ---
 
-## 5. Configuração — Mapeamento Hibernate
+### Código 9 — `MedicaoPostHandlerImpl.java` — Handler POST com múltiplos fluxos
 
-### Código 8 — `hibernate.cfg.xml` — Configuração do ORM
+Demonstra o roteamento interno de um único endpoint POST para 5 fluxos diferentes
+(sincronização em lote, coletor, inserção com localização, inserção manual),
+cada um com `origem` específica para rastreabilidade.
 
-Arquivo de configuração do Hibernate responsável pela conexão ao banco de dados
-MySQL e pelo mapeamento das três entidades do modelo relacional.
+```java
+@Override
+public void tratar(HttpRequest req, HttpResponseSender send) throws IOException {
+    String path  = req.getPath();
+    String corpo = req.getBody();
+
+    // Fluxo 1: sincronização em lote
+    if (path.endsWith("/sincronizacoes")) {
+        SincronizacaoRequest syncReq = SincronizacaoRequest.fromJson(corpo);
+        List<MedicaoAmbiental> paraRegistrar = new ArrayList<>();
+        for (String local : syncReq.locais()) {
+            MedicaoAmbiental clima = openWeatherClient.buscarClima(local);
+            if (clima != null) paraRegistrar.add(clima);
+        }
+        List<MedicaoAmbiental> salvas =
+            registroService.registrarLote(paraRegistrar, Origem.SINCRONIZACAO);
+        send.criado(MedicaoResponse.fromEntitiesToJson(salvas));
+        return;
+    }
+
+    // Fluxo 2: inserção com localização (busca dados reais na OWM)
+    MedicaoRequest dto = MedicaoRequest.fromJson(corpo);
+    if (dto.temLocalizacao()) {
+        MedicaoAmbiental medicao =
+            openWeatherClient.buscarClima(dto.resolverLocalizacaoConsulta());
+        MedicaoAmbiental salva = registroService.registrar(medicao, Origem.POST);
+        send.criado(MedicaoResponse.fromEntity(salva).toJson());
+        return;
+    }
+
+    // Fluxo 3: inserção manual (sem cidade, dados fornecidos pelo cliente)
+    MedicaoAmbiental manual = new MedicaoAmbiental();
+    manual.setEstacaoIdTemp("ESTACAO-MANUAL");
+    manual.setTemperatura(dto.temperatura());
+    manual.setUmidade(dto.umidade());
+    registroService.registrar(manual, Origem.MANUAL);
+}
+```
+
+> **Fonte:** `src/main/java/com/app/handler/operacoes/post/MedicaoPostHandlerImpl.java`
+
+---
+
+## 5. Consultas HQL com JOIN
+
+### Código 10 — `ConsultaMedicaoDaoImpl.java` — Query paginada com JOIN e filtros dinâmicos
+
+Demonstra construção de HQL dinâmico para filtros opcionais, paginação,
+ordenação segura contra SQL Injection (via whitelist), e `JOIN FETCH`
+para carregar relacionamentos numa única query sem N+1.
+
+```java
+@Override
+public List<MedicaoAmbiental> listarComFiltros(
+        String cidade, Double tempMin, Double tempMax,
+        Boolean precipitacao, String sort, String order,
+        int page, int pageSize) {
+
+    int firstResult = (Math.max(1, page) - 1) * Math.min(pageSize, 100);
+    String safeOrder = "ASC".equalsIgnoreCase(order) ? "ASC" : "DESC";
+
+    // Construção dinâmica do HQL com filtros opcionais
+    StringBuilder hql = new StringBuilder(
+        "FROM MedicaoAmbiental m " +
+        "JOIN FETCH m.estacao e LEFT JOIN FETCH e.cidade c WHERE 1=1 ");
+
+    if (cidade != null)       hql.append("AND LOWER(c.nome) LIKE LOWER(:cidade) ");
+    if (tempMin != null)      hql.append("AND m.temperatura >= :tempMin ");
+    if (tempMax != null)      hql.append("AND m.temperatura <= :tempMax ");
+    if (precipitacao != null) hql.append("AND m.precipitacao = :precipitacao ");
+
+    // Mapeamento seguro do campo de ordenação (evita SQL Injection)
+    String sortHql = switch (sort != null ? sort.toLowerCase() : "") {
+        case "temperatura"  -> "m.temperatura";
+        case "umidade"      -> "m.umidade";
+        case "cidade"       -> "c.nome";
+        default             -> "m.dataHora";
+    };
+    hql.append("ORDER BY ").append(sortHql).append(" ").append(safeOrder);
+
+    try (Session s = HibernateUtil.getSessionFactory().openSession()) {
+        Query<MedicaoAmbiental> q = s.createQuery(hql.toString(), MedicaoAmbiental.class);
+        if (cidade != null)       q.setParameter("cidade",      "%" + cidade + "%");
+        if (tempMin != null)      q.setParameter("tempMin",      tempMin);
+        if (tempMax != null)      q.setParameter("tempMax",      tempMax);
+        if (precipitacao != null) q.setParameter("precipitacao", precipitacao);
+        return q.setFirstResult(firstResult)
+                .setMaxResults(Math.min(pageSize, 100))
+                .getResultList();
+    }
+}
+```
+
+> **Fonte:** `src/main/java/com/app/dao/consulta/ConsultaMedicaoDaoImpl.java`
+
+---
+
+### Código 11 — `ConsultaMedicaoDaoImpl.java` — Estatísticas com agregação SQL
+
+Calcula estatísticas climáticas usando uma única query HQL de projeção com
+`COUNT`, `MIN`, `MAX`, `AVG` e `SUM`. Evita o problema N+1 ao operar diretamente
+no banco em vez de carregar todos os registros em memória.
+
+```java
+@Override
+public EstatisticasClimaticas calcularEstatisticasAgregadas(
+        String cidade, int limite) {
+
+    // Passo 1: seleciona os IDs das N medições mais recentes
+    StringBuilder idHql = new StringBuilder(
+        "SELECT m.id FROM MedicaoAmbiental m " +
+        "JOIN m.estacao e LEFT JOIN e.cidade c ");
+    if (cidade != null) idHql.append("WHERE LOWER(c.nome) LIKE LOWER(:cidade) ");
+    idHql.append("ORDER BY m.dataHora DESC, m.id DESC");
+
+    List<Long> ids = session.createQuery(idHql.toString(), Long.class)
+        .setParameter("cidade", "%" + cidade + "%")
+        .setMaxResults(limite)
+        .getResultList();
+
+    // Passo 2: uma única query de agregação sobre esses IDs
+    String aggHql =
+        "SELECT count(m), " +
+        "coalesce(min(m.temperatura),0), coalesce(max(m.temperatura),0), " +
+        "coalesce(avg(m.temperatura),0), " +
+        "coalesce(min(m.umidade),0),     coalesce(max(m.umidade),0), " +
+        "coalesce(avg(m.umidade),0), " +
+        "coalesce(max(m.velocidadeVento),0), " +
+        "sum(case when m.precipitacao = true then 1L else 0L end) " +
+        "FROM MedicaoAmbiental m WHERE m.id IN (:ids)";
+
+    Object[] res = session.createQuery(aggHql, Object[].class)
+        .setParameterList("ids", ids)
+        .uniqueResult();
+
+    return new EstatisticasClimaticas(
+        ((Number) res[0]).intValue(),           // total
+        ((Number) res[1]).doubleValue(),         // tempMin
+        ((Number) res[2]).doubleValue(),         // tempMax
+        ((Number) res[3]).doubleValue(),         // tempMedia
+        ((Number) res[4]).doubleValue(),         // umidadeMin
+        ((Number) res[5]).doubleValue(),         // umidadeMax
+        ((Number) res[6]).doubleValue(),         // umidadeMedia
+        ((Number) res[7]).doubleValue(),         // ventoMaximo
+        ((Number) res[8]).longValue()            // ocorrenciasChuva
+    );
+}
+```
+
+> **Fonte:** `src/main/java/com/app/dao/consulta/ConsultaMedicaoDaoImpl.java`
+
+---
+
+## 6. Utilitários
+
+### Código 12 — `AsyncLogger.java` — Logging assíncrono com fila de eventos
+
+Implementa um sistema de log assíncrono usando `LinkedBlockingQueue` com capacidade
+de 4096 eventos, consumida por uma thread daemon dedicada. As threads HTTP nunca
+bloqueiam em operações de I/O de log.
+
+```java
+public class AsyncLogger {
+
+    private static final int QUEUE_CAPACITY = 4096;
+    private static final BlockingQueue<LogEntry> queue =
+        new LinkedBlockingQueue<>(QUEUE_CAPACITY);
+    private static final AtomicBoolean running = new AtomicBoolean(true);
+
+    static {
+        // Thread daemon consumidora da fila de logs
+        Thread worker = new Thread(AsyncLogger::processLogs, "AsyncLogger-Worker");
+        worker.setDaemon(true);
+        worker.start();
+    }
+
+    private static void processLogs() {
+        while (running.get() || !queue.isEmpty()) {
+            try {
+                LogEntry entry = queue.poll();
+                if (entry != null) imprimir(entry);
+                else Thread.sleep(10);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+        }
+    }
+
+    public static void info(String message) {
+        enqueue("INFO", message, null);
+    }
+
+    public static void error(String message, Throwable throwable) {
+        enqueue("ERROR", message, throwable);
+    }
+
+    private static void enqueue(String level, String message, Throwable t) {
+        LogEntry entry = new LogEntry(
+            LocalDateTime.now().format(TIME_FORMAT),
+            level,
+            Thread.currentThread().getName(),
+            message, t
+        );
+        // Se a fila estiver cheia, descarta o log (não bloqueia a thread HTTP)
+        if (!queue.offer(entry)) {
+            System.err.println("[LOG BUFFER FULL] Descartando: " + message);
+        }
+    }
+
+    private record LogEntry(
+        String timestamp, String level,
+        String threadName, String message,
+        Throwable throwable) {}
+}
+```
+
+> **Fonte:** `src/main/java/com/app/util/logging/AsyncLogger.java`
+
+---
+
+## 7. Configuração
+
+### Código 13 — `hibernate.cfg.xml` — Mapeamento ORM e configuração JDBC
+
+Configura a conexão ao MySQL, estratégia DDL e mapeamento das três entidades
+do modelo relacional. O `batch_size=25` agrupa inserts em lote para performance.
 
 ```xml
 <hibernate-configuration>
@@ -364,17 +730,20 @@ MySQL e pelo mapeamento das três entidades do modelo relacional.
     <property name="hibernate.connection.url">
         jdbc:mysql://localhost:3306/estacao_ambiental_db?
         createDatabaseIfNotExist=true&amp;useSSL=false&amp;
-        serverTimezone=America/Sao_Paulo&amp;characterEncoding=UTF-8
+        serverTimezone=America/Sao_Paulo
     </property>
 
-    <!-- update: preserva dados; create: recria tabelas do zero -->
+    <!--
+      update: ajusta schema preservando dados (uso normal)
+      create: recria tabelas do zero (reset/primeira execução)
+    -->
     <property name="hibernate.hbm2ddl.auto">update</property>
 
-    <!-- Batching JDBC: agrupa 25 inserts numa única operação -->
+    <!-- Agrupa 25 inserts numa única operação JDBC -->
     <property name="hibernate.jdbc.batch_size">25</property>
     <property name="hibernate.order_inserts">true</property>
 
-    <!-- Mapeamento das entidades -->
+    <!-- Mapeamento das 3 entidades do modelo relacional -->
     <mapping class="com.app.model.Cidade"/>
     <mapping class="com.app.model.Estacao"/>
     <mapping class="com.app.model.MedicaoAmbiental"/>
@@ -391,5 +760,5 @@ MySQL e pelo mapeamento das três entidades do modelo relacional.
 
 **Repositório:** https://github.com/BatistaSec/APS-2026-2-backend
 **Linguagem:** Java 21
-**Dependências:** Hibernate ORM 6.5.2.Final, MySQL Connector/J 8.3.0
-**Gerenciador de build:** Apache Maven 3.8+
+**Dependências:** Hibernate ORM 6.5.2.Final · MySQL Connector/J 8.3.0
+**Build:** Apache Maven 3.8+
