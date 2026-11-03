@@ -15,18 +15,14 @@ public class Cidade {
     @Column(name = "nome", nullable = false, length = 100)
     private String nome;
 
-    @Column(name = "estado", length = 100)
-    private String estado;
-
     @Column(name = "pais", length = 10)
     private String pais;
 
     public Cidade() {}
 
-    public Cidade(String nome, String estado, String pais) {
-        this.nome   = nome;
-        this.estado = estado;
-        this.pais   = pais;
+    public Cidade(String nome, String pais) {
+        this.nome = nome;
+        this.pais = pais;
     }
 
     public Long getId()          { return id; }
@@ -35,14 +31,11 @@ public class Cidade {
     public String getNome()            { return nome; }
     public void setNome(String nome)   { this.nome = nome; }
 
-    public String getEstado()              { return estado; }
-    public void setEstado(String estado)   { this.estado = estado; }
-
     public String getPais()            { return pais; }
     public void setPais(String pais)   { this.pais = pais; }
 
     @Override
     public String toString() {
-        return "Cidade[id=" + id + ", nome=" + nome + ", estado=" + estado + ", pais=" + pais + "]";
+        return "Cidade[id=" + id + ", nome=" + nome + ", pais=" + pais + "]";
     }
 }

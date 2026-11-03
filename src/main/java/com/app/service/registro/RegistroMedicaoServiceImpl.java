@@ -93,14 +93,13 @@ public class RegistroMedicaoServiceImpl implements RegistroMedicaoService {
     private void resolverEstacao(MedicaoAmbiental medicao) {
         String estacaoIdStr = medicao.getEstacaoIdTemp();
         String nomeCidade   = medicao.getCidadeTemp();
-        String estado       = medicao.getEstadoTemp();
         String pais         = medicao.getPaisTemp();
         Estacao.Tipo tipo   = (estacaoIdStr != null && estacaoIdStr.startsWith("OPENWEATHER"))
                               ? Estacao.Tipo.OWM : Estacao.Tipo.MANUAL;
 
         String idEstacao = (estacaoIdStr != null && !estacaoIdStr.isBlank()) ? estacaoIdStr : "ESTACAO-MANUAL";
 
-        Estacao estacao = estacaoRepository.resolverEstacao(idEstacao, nomeCidade, estado, pais, tipo);
+        Estacao estacao = estacaoRepository.resolverEstacao(idEstacao, nomeCidade, pais, tipo);
         medicao.setEstacao(estacao);
     }
 

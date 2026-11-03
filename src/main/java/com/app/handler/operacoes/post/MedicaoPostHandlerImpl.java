@@ -118,8 +118,7 @@ public class MedicaoPostHandlerImpl implements MedicaoPostHandler {
             if (dto.direcaoVento()       != null) medicao.setDirecaoVento(dto.direcaoVento());
             if (dto.indiceUv()           != null) medicao.setIndiceUv(dto.indiceUv());
             // propaga estado/país do DTO para enriquecer a resolução de Cidade
-            if (dto.estado() != null && !dto.estado().isBlank()) medicao.setEstadoTemp(dto.estado());
-            if (dto.pais()   != null && !dto.pais().isBlank())   medicao.setPaisTemp(dto.pais());
+            if (dto.pais() != null && !dto.pais().isBlank()) medicao.setPaisTemp(dto.pais());
 
             MedicaoAmbiental salva = registroService.registrar(medicao, Origem.POST);
             send.criado(MedicaoResponse.fromEntity(salva).toJson());

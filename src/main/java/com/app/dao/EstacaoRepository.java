@@ -33,12 +33,11 @@ public class EstacaoRepository {
      * o registro já criado pelo outro.
      */
     public Estacao resolverEstacao(String estacaoId, String nomeCidade,
-                                   String estado, String pais, Estacao.Tipo tipo) {
+                                   String pais, Estacao.Tipo tipo) {
         if (estacaoId == null || estacaoId.isBlank()) return null;
 
         String idLimpo     = estacaoId.trim();
         String nomeLimpo   = (nomeCidade != null && !nomeCidade.isBlank()) ? nomeCidade.trim() : null;
-        String estadoLimpo = (estado != null && !estado.isBlank())         ? estado.trim()     : null;
         String paisLimpo   = (pais   != null && !pais.isBlank())           ? pais.trim().toUpperCase() : "BR";
 
         // Tenta criar numa transação — em caso de duplicate key (race condition), faz retry de leitura
@@ -50,7 +49,7 @@ public class EstacaoRepository {
                 if (estacao != null) return estacao;
 
                 // 2. Resolve a cidade dentro da mesma sessão
-                Cidade cidade = resolverCidadeNaSessao(session, nomeLimpo, estadoLimpo, paisLimpo);
+                Cidade cidade = resolverCidadeNaSessao(session, nomeLimpo, paisLimpo);
 
                 // 3. Cria estação
                 Estacao nova = new Estacao(idLimpo, cidade, tipo);
@@ -73,10 +72,9 @@ public class EstacaoRepository {
 
     // ── helpers privados ───────────────────────────────────────────────────
 
-    private Cidade resolverCidadeNaSessao(Session session, String nome, String estado, String pais) {
+    private Cidade resolverCidadeNaSessao(Session session, String nome, String pais) {
         if (nome == null) return null;
 
-        // Busca por nome + país (ignoramos estado na busca para evitar duplicatas com estado null vs preenchido)
         Cidade existente = session.createQuery(
                 "FROM Cidade WHERE LOWER(nome) = LOWER(:nome) AND pais = :pais", Cidade.class)
                 .setParameter("nome", nome)
@@ -85,15 +83,9 @@ public class EstacaoRepository {
                 .uniqueResultOptional()
                 .orElse(null);
 
-        if (existente != null) {
-            // Atualiza o estado se chegou agora e estava null antes
-            if (existente.getEstado() == null && estado != null) {
-                existente.setEstado(estado);
-            }
-            return existente;
-        }
+        if (existente != null) return existente;
 
-        Cidade nova = new Cidade(nome, estado, pais);
+        Cidade nova = new Cidade(nome, pais);
         session.persist(nova);
         session.flush();
         AsyncLogger.info("[EstacaoRepository] Cidade criada: " + nova);
