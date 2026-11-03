@@ -89,7 +89,9 @@ public class ColetorAgendadoServiceImpl implements ColetorAgendadoService {
             MedicaoAmbiental leitura = openWeatherClient.buscarClima(cidadeAlvo);
             MedicaoAmbiental salva = registroMedicaoService.registrar(leitura, MedicaoAmbiental.Origem.COLETOR);
 
-            String local = (salva.getCidade() != null && !salva.getCidade().isBlank()) ? salva.getCidade() : salva.getEstacaoId();
+            String local = (salva.getCidadeTemp() != null && !salva.getCidadeTemp().isBlank())
+                    ? salva.getCidadeTemp()
+                    : salva.getEstacaoId();
             AsyncLogger.info(String.format("[COLETA 10s] [%s] ID: #%d | %.1f°C (Sensacao: %.1f°C) | %.1f%% | %s | %.1f km/h (%s)",
                     local,
                     salva.getId(),

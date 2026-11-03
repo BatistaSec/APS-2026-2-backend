@@ -20,7 +20,7 @@ public class Estacao {
     @Column(name = "id", length = 60)
     private String id; // ex: "OPENWEATHER-SAO-PAULO", "ESTACAO-MANUAL"
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = true)
+    @ManyToOne(fetch = FetchType.EAGER, optional = true)
     @JoinColumn(name = "cidade_id", nullable = true)
     private Cidade cidade; // null para estações manuais sem localização
 

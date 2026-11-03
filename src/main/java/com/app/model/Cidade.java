@@ -19,8 +19,8 @@ public class Cidade {
     @Column(name = "nome", nullable = false, length = 100)
     private String nome;
 
-    @Column(name = "estado", length = 2)
-    private String estado; // sigla BR: SP, RJ, etc.
+    @Column(name = "estado", length = 100)
+    private String estado; // nome completo ou sigla
 
     @Column(name = "pais", length = 2)
     private String pais; // ISO 2: BR, JP, US, etc.
